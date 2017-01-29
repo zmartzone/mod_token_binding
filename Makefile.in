@@ -1,0 +1,56 @@
+# Source files. mod_token_binding.c must be the first file.
+SRC=src/mod_token_binding.c
+
+HDRS = src/mod_token_binding.h
+
+# Files to include when making a .tar.gz-file for distribution
+DISTFILES=$(SRC) \
+	$(HDRS) \
+	configure \
+	configure.ac \
+	Makefile.in \
+	autogen.sh \
+	README.md \
+	AUTHORS \
+	DISCLAIMER \
+	LICENSE.txt \
+	ChangeLog
+
+all: src/mod_token_binding.la
+
+CFLAGS=@OPENSSL_CFLAGS@ -I@TOKEN_BINDING@
+LIBS=@OPENSSL_LIBS@
+OBJS=@TOKEN_BINDING@/token_bind_server.c @TOKEN_BINDING@/token_bind_common.c @TOKEN_BINDING@/cbs.c @TOKEN_BINDING@/cbb.c @TOKEN_BINDING@/base64.c
+
+src/mod_token_binding.la: $(SRC) $(HDRS)
+	@APXS2@ @APXS2_OPTS@ -Wc,"-DNAMEVER=\"@NAMEVER@\" $(CFLAGS)" -Wl,"$(LIBS)" -Wc,-Wall -Wc,-g -c $(SRC) $(OBJS)
+
+configure:	configure.ac
+	./autogen.sh
+
+@NAMEVER@.tar.gz:	 $(DISTFILES)
+	tar -c --transform="s#^#@NAMEVER@/#" -vzf $@ $(DISTFILES)
+
+.PHONY:	install
+install: src/mod_token_binding.la
+	@APXS2@ @APXS2_OPTS@ -i -n mod_token_binding src/mod_token_binding.la
+
+.PHONY: distfile
+distfile:	@NAMEVER@.tar.gz
+
+.PHONY:	clean
+clean:
+	rm -f src/mod_token_binding.la
+	rm -f src/*.o
+	rm -f src/*.lo
+	rm -f src/*.slo
+	rm -rf src/.libs
+
+.PHONY:	distclean
+distclean:	clean
+	rm -f Makefile config.log config.status @NAMEVER@.tar.gz *~ \
+	build-stamp config.guess config.sub
+
+.PHONY: fullclean
+fullclean:	distclean
+	rm -f configure aclocal.m4
