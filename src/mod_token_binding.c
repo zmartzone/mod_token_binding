@@ -74,6 +74,13 @@ static int tb_add_ext(server_rec *s, SSL_CTX *ctx) {
 	ap_log_error(APLOG_MARK, APLOG_INFO, 0, s,
 			"tb_add_ext: ### s=%pp, ctx=%pp ###", s, ctx);
 
+	if (!tbTLSLibInit()) {
+		ap_log_error(APLOG_MARK, APLOG_ERR, 0, s,
+				"tb_add_ext: tbTLSLibInit() failed");
+	}
+	ap_log_error(APLOG_MARK, APLOG_INFO, 0, s,
+			"tb_add_ext: tbTLSLibInit() succeeded");
+
 	if (!tbEnableTLSTokenBindingNegotiation(ctx)) {
 		ap_log_error(APLOG_MARK, APLOG_ERR, 0, s,
 				"tb_add_ext: tbEnableTLSTokenBindingNegotiation() failed");
@@ -99,14 +106,6 @@ static apr_status_t tb_cleanup_handler(void *data) {
 static int tb_post_config_handler(apr_pool_t *pool, apr_pool_t *p1,
 		apr_pool_t *p2, server_rec *s) {
 	ap_log_error(APLOG_MARK, APLOG_INFO, 0, s, "%s - init", NAMEVERSION);
-
-	if (!tbTLSLibInit()) {
-		ap_log_error(APLOG_MARK, APLOG_ERR, 0, s,
-				"tb_post_config_handler: tbTLSLibInit() failed");
-	}
-	ap_log_error(APLOG_MARK, APLOG_INFO, 0, s,
-			"tb_post_config_handler: tbTLSLibInit() succeeded");
-
 	apr_pool_cleanup_register(pool, s, tb_cleanup_handler,
 			apr_pool_cleanup_null);
 	return OK;
