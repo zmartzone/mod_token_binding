@@ -1,5 +1,6 @@
 2/22/2017
 - fix library initialization and subsequent crash
+- fix handling of non-SSL connections
 - version 0.1.1
 
 1/29/2017

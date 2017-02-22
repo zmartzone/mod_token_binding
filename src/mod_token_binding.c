@@ -143,12 +143,21 @@ static int tb_auth(request_rec *r) {
 	ap_log_rerror(APLOG_MARK, APLOG_INFO, 0, r,
 			"tb_auth: ssl_is_https_fn found");
 
+	if (ssl_is_https_fn(r->connection) != 1) {
+		ap_log_rerror(APLOG_MARK, APLOG_INFO, 0, r,
+				"tb_auth: no ssl_is_https_fn returned != 1: looks like this is not an SSL connection");
+		return DECLINED;
+	}
+
+	ap_log_rerror(APLOG_MARK, APLOG_INFO, 0, r,
+			"tb_auth: ssl_is_https_fn returned 1: this is an SSL connection");
+
 	APR_OPTIONAL_FN_TYPE(ssl_get_ssl_from_request) *get_ssl_from_request_fn =
 			APR_RETRIEVE_OPTIONAL_FN(ssl_get_ssl_from_request);
 
 	if (get_ssl_from_request_fn == NULL) {
 		ap_log_rerror(APLOG_MARK, APLOG_INFO, 0, r,
-				"tb_auth: no ssl_get_ssl_from_request function found: perhaps mod_ssl is not loaded?");
+				"tb_auth: no ssl_get_ssl_from_request function found: perhaps a version of mod_ssl is loaded that is not patched for token binding?");
 		return DECLINED;
 	}
 
@@ -293,16 +302,11 @@ static const char *tb_set_enabled(cmd_parms *cmd, void *struct_ptr,
 }
 
 static const command_rec tb_cmds[] = {
-		AP_INIT_TAKE1("TokenBindingEnabled", tb_set_enabled, NULL, RSRC_CONF, "Enable or disable mod_token_binding"),
-		{ NULL }
-};
+		AP_INIT_TAKE1("TokenBindingEnabled", tb_set_enabled, NULL, RSRC_CONF,
+				"Enable or disable mod_token_binding"), { NULL } };
 
 module AP_MODULE_DECLARE_DATA token_binding_module = {
 		STANDARD20_MODULE_STUFF,
 		NULL,
-		NULL,
-		tb_create_server_config,
-		tb_merge_server_config,
-		tb_cmds,
-		tb_register_hooks,
-};
+		NULL, tb_create_server_config, tb_merge_server_config, tb_cmds,
+		tb_register_hooks, };
