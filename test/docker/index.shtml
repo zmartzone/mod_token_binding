@@ -1,0 +1,14 @@
+<html>
+  <body>
+    <h1>It works!</h1>
+    
+    <p>
+    DATE_LOCAL = <!--#echo var="DATE_LOCAL" -->
+    </p>
+    
+    <p>
+    Token-Binding-ID = <!--#echo var="Token-Binding-ID" -->
+    </p>
+
+  </body>
+</html>
