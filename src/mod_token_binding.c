@@ -178,6 +178,7 @@ static int tb_is_enabled(request_rec *r, tb_server_config *c,
 				"no ssl_is_https_fn returned != 1: looks like this is not an SSL connection");
 		return 0;
 	}
+	tb_debug(r, "ssl_is_https_fn returned 1: this is an SSL connection");
 
 	if (get_ssl_from_request_fn == NULL) {
 		tb_warn(r,
@@ -191,8 +192,6 @@ static int tb_is_enabled(request_rec *r, tb_server_config *c,
 	}
 
 	tb_debug(r, "Token Binding is enabled: key_type=%d!", *tls_key_type);
-
-	tb_debug(r, "ssl_is_https_fn returned 1: this is an SSL connection");
 
 	return 1;
 }
@@ -237,9 +236,9 @@ static int tb_post_read_request(request_rec *r) {
 	if (tb_get_decoded_header(r, &message, &message_len) == 0)
 		return HTTP_UNAUTHORIZED;
 
-	uint8_t* out_tokbind_id;
-	size_t out_tokbind_id_len;
-	uint8_t* referred_tokbind_id = -1;
+	uint8_t* out_tokbind_id = NULL;
+	size_t out_tokbind_id_len = -1;
+	uint8_t* referred_tokbind_id = NULL;
 	size_t referred_tokbind_id_len = -1;
 
 	if (tbCacheMessageAlreadyVerified(cfg->cache, (uint8_t*) message,
