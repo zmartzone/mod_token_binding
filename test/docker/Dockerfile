@@ -17,6 +17,7 @@ ENV OPENSSL_VERSION 1.1.0e
 
 RUN wget https://www.openssl.org/source/openssl-${OPENSSL_VERSION}.tar.gz
 RUN tar zxvf openssl-${OPENSSL_VERSION}.tar.gz
+RUN cd openssl-${OPENSSL_VERSION} && wget -O - https://raw.githubusercontent.com/zmartzone/token_bind/master/example/custom_ext_resume.patch | patch -p1
 RUN cd openssl-${OPENSSL_VERSION} && ./config --prefix=${TARGET_DIR} && make && make install
 
 #

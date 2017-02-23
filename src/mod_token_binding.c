@@ -131,34 +131,38 @@ static int tb_post_config_handler(apr_pool_t *pool, apr_pool_t *p1,
 	return OK;
 }
 
-static const char TB_SEC_TOKEN_BINDING_HDR_NAME[] = "Sec-Token-Binding";
-static const char TB_SEC_TOKEN_BINDING_ENV_NAME[] = "Token-Binding-ID";
+static const char TB_HDR_NAME_SEC_TOKEN_BINDING[] = "Sec-Token-Binding";
+static const char TB_ENV_NAME_TOKEN_BINDING_PROVIDED[] =
+		"Provided-Token-Binding-ID";
+static const char TB_ENV_NAME_TOKEN_BINDING_REFERRED[] =
+		"Referred-Token-Binding-ID";
 
-static void tb_set_env_var(request_rec *r, uint8_t* out_tokbind_id,
-		size_t out_tokbind_id_len) {
+static void tb_set_env_var(request_rec *r, const char *name,
+		uint8_t* tokbind_id, size_t tokbind_id_len) {
 
-	tb_debug(r, "enter");
+	tb_debug(r, "enter: %pp, %d", tokbind_id, (int )tokbind_id_len);
 
-	if ((out_tokbind_id == NULL) || (out_tokbind_id_len <= 0))
+	if ((tokbind_id == NULL) || (tokbind_id_len <= 0))
 		return;
 
-	size_t env_var_len = CalculateBase64EscapedLen(out_tokbind_id_len, false);
+	size_t env_var_len = CalculateBase64EscapedLen(tokbind_id_len, false);
 	char* env_var_str = apr_pcalloc(r->pool, env_var_len + 1);
-	WebSafeBase64Escape((const char *) out_tokbind_id, out_tokbind_id_len,
-			env_var_str, env_var_len, false);
+	WebSafeBase64Escape((const char *) tokbind_id, tokbind_id_len, env_var_str,
+			env_var_len, false);
 
-	tb_debug(r, "set Token Binding ID environment variable: %s=%s",
-			TB_SEC_TOKEN_BINDING_ENV_NAME, env_var_str);
-
-	apr_table_set(r->subprocess_env, TB_SEC_TOKEN_BINDING_ENV_NAME,
+	tb_debug(r, "set Token Binding ID environment variable: %s=%s", name,
 			env_var_str);
+
+	apr_table_set(r->subprocess_env, name, env_var_str);
 
 }
 
 static int tb_is_enabled(request_rec *r, tb_server_config *c,
 		tbKeyType *tls_key_type) {
 
-	tb_debug(r, "enter: enabled=%d, ssl_is_https_fn=%pp, get_ssl_from_request_fn=%pp", c->enabled, ssl_is_https_fn, get_ssl_from_request_fn);
+	tb_debug(r,
+			"enter: enabled=%d, ssl_is_https_fn=%pp, get_ssl_from_request_fn=%pp",
+			c->enabled, ssl_is_https_fn, get_ssl_from_request_fn);
 
 	if (c->enabled == 0)
 		return 0;
@@ -196,15 +200,15 @@ static int tb_is_enabled(request_rec *r, tb_server_config *c,
 static int tb_get_decoded_header(request_rec *r, char **message,
 		size_t *message_len) {
 	const char *header = apr_table_get(r->headers_in,
-			TB_SEC_TOKEN_BINDING_HDR_NAME);
+			TB_HDR_NAME_SEC_TOKEN_BINDING);
 	if (header == NULL) {
 		tb_warn(r, "no \"%s\" header found in request",
-				TB_SEC_TOKEN_BINDING_HDR_NAME);
+				TB_HDR_NAME_SEC_TOKEN_BINDING);
 		return 0;
 	}
 
 	tb_debug(r, "Token Binding header found: %s=%s",
-			TB_SEC_TOKEN_BINDING_HDR_NAME, header);
+			TB_HDR_NAME_SEC_TOKEN_BINDING, header);
 
 	size_t maxlen = strlen(header);
 	*message = apr_pcalloc(r->pool, maxlen);
@@ -235,8 +239,8 @@ static int tb_post_read_request(request_rec *r) {
 
 	uint8_t* out_tokbind_id;
 	size_t out_tokbind_id_len;
-	uint8_t* referred_tokbind_id;
-	size_t referred_tokbind_id_len;
+	uint8_t* referred_tokbind_id = -1;
+	size_t referred_tokbind_id_len = -1;
 
 	if (tbCacheMessageAlreadyVerified(cfg->cache, (uint8_t*) message,
 			message_len, &out_tokbind_id, &out_tokbind_id_len,
@@ -247,7 +251,10 @@ static int tb_post_read_request(request_rec *r) {
 		} else {
 			tb_debug(r, "Token Binding header was found in the cache");
 		}
-		tb_set_env_var(r, out_tokbind_id, out_tokbind_id_len);
+		tb_set_env_var(r, TB_ENV_NAME_TOKEN_BINDING_PROVIDED, out_tokbind_id,
+				out_tokbind_id_len);
+		tb_set_env_var(r, TB_ENV_NAME_TOKEN_BINDING_REFERRED,
+				referred_tokbind_id, referred_tokbind_id_len);
 		return DECLINED;
 	}
 
@@ -273,7 +280,10 @@ static int tb_post_read_request(request_rec *r) {
 
 	tb_debug(r, "verified Token Binding header!");
 
-	tb_set_env_var(r, out_tokbind_id, out_tokbind_id_len);
+	tb_set_env_var(r, TB_ENV_NAME_TOKEN_BINDING_PROVIDED, out_tokbind_id,
+			out_tokbind_id_len);
+	tb_set_env_var(r, TB_ENV_NAME_TOKEN_BINDING_REFERRED, referred_tokbind_id,
+			referred_tokbind_id_len);
 
 	return DECLINED;
 }
