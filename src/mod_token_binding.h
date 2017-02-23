@@ -46,6 +46,9 @@
 #ifndef MOD_TOKEN_BINDING_H_
 #define MOD_TOKEN_BINDING_H_
 
+#include <http_log.h>
+#include <http_config.h>
+
 #ifdef APLOG_USE_MODULE
 APLOG_USE_MODULE(token_binding);
 #endif
