@@ -53,6 +53,7 @@
 #include <apr_optional.h>
 
 #include "openssl/rand.h"
+#include <openssl/ssl.h>
 
 #include "mod_token_binding.h"
 
@@ -92,7 +93,7 @@ static APR_OPTIONAL_FN_TYPE(ssl_get_ssl_from_request) *get_ssl_from_request_fn =
 // called dynamically from mod_ssl
 static int tb_add_ext(server_rec *s, SSL_CTX *ctx) {
 
-	tb_sdebug(s, "s=%pp, ctx=%pp ###", s, ctx);
+	tb_sdebug(s, "enter");
 
 	if (!tbTLSLibInit()) {
 		tb_serror(s, "tbTLSLibInit() failed");
@@ -133,70 +134,109 @@ static int tb_post_config_handler(apr_pool_t *pool, apr_pool_t *p1,
 static const char TB_SEC_TOKEN_BINDING_HDR_NAME[] = "Sec-Token-Binding";
 static const char TB_SEC_TOKEN_BINDING_ENV_NAME[] = "Token-Binding-ID";
 
-static int tb_post_read_request(request_rec *r) {
+static void tb_set_env_var(request_rec *r, uint8_t* out_tokbind_id,
+		size_t out_tokbind_id_len) {
 
-	tb_server_config *cfg = (tb_server_config*) ap_get_module_config(
-			r->server->module_config, &token_binding_module);
+	tb_debug(r, "enter");
 
-	tb_debug(r, "enter: %pp, %pp, %d", cfg, cfg->cache, cfg->enabled);
+	if ((out_tokbind_id == NULL) || (out_tokbind_id_len <= 0))
+		return;
 
-	if (cfg->enabled == 0)
-		return DECLINED;
+	size_t env_var_len = CalculateBase64EscapedLen(out_tokbind_id_len, false);
+	char* env_var_str = apr_pcalloc(r->pool, env_var_len + 1);
+	WebSafeBase64Escape((const char *) out_tokbind_id, out_tokbind_id_len,
+			env_var_str, env_var_len, false);
 
-	tbKeyType tls_key_type;
+	tb_debug(r, "set Token Binding ID environment variable: %s=%s",
+			TB_SEC_TOKEN_BINDING_ENV_NAME, env_var_str);
+
+	apr_table_set(r->subprocess_env, TB_SEC_TOKEN_BINDING_ENV_NAME,
+			env_var_str);
+
+}
+
+static int tb_is_enabled(request_rec *r, tb_server_config *c,
+		tbKeyType *tls_key_type) {
+
+	tb_debug(r, "enter: enabled=%d, ssl_is_https_fn=%pp, get_ssl_from_request_fn=%pp", c->enabled, ssl_is_https_fn, get_ssl_from_request_fn);
+
+	if (c->enabled == 0)
+		return 0;
 
 	if (ssl_is_https_fn == NULL) {
 		tb_error(r,
 				"no ssl_is_https_fn function found: perhaps mod_ssl is not loaded?");
-		return DECLINED;
+		return 0;
 	}
 
 	if (ssl_is_https_fn(r->connection) != 1) {
 		tb_debug(r,
 				"no ssl_is_https_fn returned != 1: looks like this is not an SSL connection");
-		return DECLINED;
+		return 0;
 	}
-
-	tb_debug(r, "ssl_is_https_fn returned 1: this is an SSL connection");
 
 	if (get_ssl_from_request_fn == NULL) {
 		tb_warn(r,
 				"no ssl_get_ssl_from_request function found: perhaps a version of mod_ssl is loaded that is not patched for token binding?");
-		return DECLINED;
+		return 0;
 	}
 
-	if (!tbTokenBindingEnabled(get_ssl_from_request_fn(r), &tls_key_type)) {
+	if (!tbTokenBindingEnabled(get_ssl_from_request_fn(r), tls_key_type)) {
 		tb_warn(r, "Token Binding is not enabled");
-		return DECLINED;
+		return 0;
 	}
 
-	tb_debug(r, "Token Binding is enabled!");
+	tb_debug(r, "Token Binding is enabled: key_type=%d!", *tls_key_type);
 
-	const char *tb_header = apr_table_get(r->headers_in,
+	tb_debug(r, "ssl_is_https_fn returned 1: this is an SSL connection");
+
+	return 1;
+}
+
+static int tb_get_decoded_header(request_rec *r, char **message,
+		size_t *message_len) {
+	const char *header = apr_table_get(r->headers_in,
 			TB_SEC_TOKEN_BINDING_HDR_NAME);
-	if (tb_header == NULL) {
+	if (header == NULL) {
 		tb_warn(r, "no \"%s\" header found in request",
 				TB_SEC_TOKEN_BINDING_HDR_NAME);
-		return HTTP_UNAUTHORIZED;
+		return 0;
 	}
 
 	tb_debug(r, "Token Binding header found: %s=%s",
-			TB_SEC_TOKEN_BINDING_HDR_NAME, tb_header);
+			TB_SEC_TOKEN_BINDING_HDR_NAME, header);
+
+	size_t maxlen = strlen(header);
+	*message = apr_pcalloc(r->pool, maxlen);
+	*message_len = WebSafeBase64Unescape(header, *message, maxlen);
+	if (*message_len == 0) {
+		tb_error(r, "could not base64url decode Token Binding header");
+		return 0;
+	}
+
+	return 1;
+}
+
+static int tb_post_read_request(request_rec *r) {
+
+	tb_server_config *cfg = (tb_server_config*) ap_get_module_config(
+			r->server->module_config, &token_binding_module);
+	tbKeyType tls_key_type;
+	char *message = NULL;
+	size_t message_len;
+
+	tb_debug(r, "enter: enabled=%d", cfg->enabled);
+
+	if (tb_is_enabled(r, cfg, &tls_key_type) == 0)
+		return DECLINED;
+
+	if (tb_get_decoded_header(r, &message, &message_len) == 0)
+		return HTTP_UNAUTHORIZED;
 
 	uint8_t* out_tokbind_id;
 	size_t out_tokbind_id_len;
 	uint8_t* referred_tokbind_id;
 	size_t referred_tokbind_id_len;
-
-	size_t maxlen = strlen(tb_header);
-	char* message = apr_pcalloc(r->pool, maxlen);
-	size_t message_len = WebSafeBase64Unescape(tb_header, message, maxlen);
-	if (message_len == 0) {
-		tb_error(r, "could not base64urlecode Token Binding header");
-		return HTTP_UNAUTHORIZED;
-	}
-
-	tb_debug(r, "call tbCacheMessageAlreadyVerified");
 
 	if (tbCacheMessageAlreadyVerified(cfg->cache, (uint8_t*) message,
 			message_len, &out_tokbind_id, &out_tokbind_id_len,
@@ -207,6 +247,7 @@ static int tb_post_read_request(request_rec *r) {
 		} else {
 			tb_debug(r, "Token Binding header was found in the cache");
 		}
+		tb_set_env_var(r, out_tokbind_id, out_tokbind_id_len);
 		return DECLINED;
 	}
 
@@ -232,16 +273,7 @@ static int tb_post_read_request(request_rec *r) {
 
 	tb_debug(r, "verified Token Binding header!");
 
-	size_t env_var_len = CalculateBase64EscapedLen(out_tokbind_id_len, false);
-	char* env_var_str = apr_pcalloc(r->pool, env_var_len + 1);
-	WebSafeBase64Escape((const char *) out_tokbind_id, out_tokbind_id_len,
-			env_var_str, env_var_len, false);
-
-	tb_debug(r, "set Token Binding ID environment variable: %s=%s",
-			TB_SEC_TOKEN_BINDING_ENV_NAME, env_var_str);
-
-	apr_table_set(r->subprocess_env, TB_SEC_TOKEN_BINDING_ENV_NAME,
-			env_var_str);
+	tb_set_env_var(r, out_tokbind_id, out_tokbind_id_len);
 
 	return DECLINED;
 }
