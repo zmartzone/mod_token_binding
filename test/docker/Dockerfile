@@ -5,6 +5,7 @@ RUN apt-get clean && apt-get --fix-missing update
 RUN apt-get update && apt-get install -y apt-utils build-essential autoconf automake libtool-bin
 RUN apt-get update && apt-get install -y git subversion wget
 RUN apt-get update && apt-get install -y python libpcre3-dev libexpat1-dev
+RUN apt-get update && apt-get install -y pkg-config
 
 WORKDIR /root
 ENV TARGET_DIR /usr/local
@@ -31,8 +32,6 @@ RUN cd httpd && ./buildconf && ./configure --enable-ssl=shared --with-ssl=${TARG
 #
 # mod_token_binding
 #
-RUN apt-get update && apt-get install -y pkg-config
-RUN echo yes
 RUN git clone https://github.com/zmartzone/token_bind.git
 RUN git clone https://github.com/zmartzone/mod_token_binding.git
 RUN cd mod_token_binding && ./autogen.sh && ./configure --with-token-binding=/root/token_bind --with-apxs2=${TARGET_DIR}/bin/apxs && make install
@@ -40,7 +39,7 @@ RUN cd mod_token_binding && ./autogen.sh && ./configure --with-token-binding=/ro
 #
 # web server configuration
 #
-RUN cd /usr/local/conf/ && openssl req -x509 -newkey rsa:2048 -keyout server.key -out server.crt -days 3650 -nodes -subj '/CN=localhost'
-COPY httpd.conf /usr/local/conf/
-COPY httpd-ssl.conf /usr/local/conf/extra/
-COPY index.shtml /usr/local/htdocs/
+RUN cd ${TARGET_DIR}/conf/ && /usr/bin/openssl req -x509 -newkey rsa:2048 -keyout server.key -out server.crt -days 3650 -nodes -subj '/CN=localhost'
+COPY httpd.conf ${TARGET_DIR}/conf/
+COPY httpd-ssl.conf ${TARGET_DIR}/conf/extra/
+COPY index.shtml ${TARGET_DIR}/htdocs/
