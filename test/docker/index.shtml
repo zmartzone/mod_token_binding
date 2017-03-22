@@ -14,5 +14,9 @@
     Referred-Token-Binding-ID = <!--#echo var="Referred-Token-Binding-ID" -->
     </p>
 
+    <p>
+    Token-Binding-Context = <!--#echo var="Token-Binding-Context" -->
+    </p>
+
   </body>
 </html>
