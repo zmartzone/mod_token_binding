@@ -7,11 +7,11 @@
     </p>
     
     <p>
-    Provided-Token-Binding-ID = <!--#echo var="Provided-Token-Binding-ID" -->
+    Token-Binding-ID-Provided = <!--#echo var="Token-Binding-ID-Provided" -->
     </p>
 
     <p>
-    Referred-Token-Binding-ID = <!--#echo var="Referred-Token-Binding-ID" -->
+    Token-Binding-ID-Referred = <!--#echo var="Token-Binding-ID-Referred" -->
     </p>
 
     <p>
