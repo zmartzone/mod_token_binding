@@ -273,7 +273,7 @@ static void tb_draft_campbell_tokbind_tls_term(request_rec *r,
 		return;
 	}
 
-	buf_len = 2 + ekm_len;
+	buf_len = kHeaderSize + ekm_len + 1;
 	buf = apr_pcalloc(r->pool, buf_len * sizeof(uint8_t));
 	if (buf == NULL) {
 		tb_error(r, "could not allocate memory for buf");
