@@ -82,6 +82,7 @@ module AP_MODULE_DECLARE_DATA token_binding_module;
 #define TB_CFG_HEADER_NAME_DEFAULT            "Sec-Token-Binding"
 #define TB_CFG_PROVIDED_ENV_VAR_DEFAULT       "Token-Binding-ID-Provided"
 #define TB_CFG_REFERRED_ENV_VAR_DEFAULT       "Token-Binding-ID-Referred"
+#define TB_CFG_CONTEXT_ENV_VAR_DEFAULT        "Token-Binding-Context"
 
 typedef struct {
 	int enabled;
@@ -89,6 +90,7 @@ typedef struct {
 	const char *sec_header_name;
 	const char *provided_env_var;
 	const char *referred_env_var;
+	const char *context_env_var;
 } tb_server_config;
 
 APR_DECLARE_OPTIONAL_FN(int, tb_add_ext, (server_rec *s, SSL_CTX *ctx));
@@ -155,6 +157,19 @@ static const char * tb_cfg_get_referred_env_var(tb_server_config *cfg) {
 			cfg->referred_env_var : TB_CFG_REFERRED_ENV_VAR_DEFAULT;
 }
 
+static const char *tb_cfg_set_context_env_var(cmd_parms *cmd, void *struct_ptr,
+		const char *arg) {
+	tb_server_config *cfg = (tb_server_config *) ap_get_module_config(
+			cmd->server->module_config, &token_binding_module);
+	cfg->context_env_var = arg;
+	return NULL;
+}
+
+static const char * tb_cfg_get_context_env_var(tb_server_config *cfg) {
+	return cfg->context_env_var ?
+			cfg->context_env_var : TB_CFG_CONTEXT_ENV_VAR_DEFAULT;
+}
+
 // called dynamically from mod_ssl
 static int tb_add_ext(server_rec *s, SSL_CTX *ctx) {
 	tb_sdebug(s, "enter");
@@ -217,7 +232,8 @@ static int tb_is_enabled(request_rec *r, tb_server_config *c,
 		return 0;
 	}
 
-	tb_debug(r, "Token Binding is enabled on this connection: key_type=%d!", *tls_key_type);
+	tb_debug(r, "Token Binding is enabled on this connection: key_type=%d!",
+			*tls_key_type);
 
 	return 1;
 }
@@ -243,6 +259,32 @@ static int tb_get_decoded_header(request_rec *r, tb_server_config *cfg,
 	}
 
 	return 1;
+}
+
+static void tb_draft_campbell_tokbind_tls_term(request_rec *r,
+		tb_server_config *cfg, SSL* ssl, tbKeyType key_type, uint8_t *ekm,
+		size_t ekm_len) {
+	static const size_t kHeaderSize = 2;
+	uint8_t* buf;
+	size_t buf_len;
+
+	if (key_type >= TB_INVALID_KEY_TYPE) {
+		tb_error(r, "key_type is invalid");
+		return;
+	}
+
+	buf_len = 2 + ekm_len;
+	buf = apr_pcalloc(r->pool, buf_len * sizeof(uint8_t));
+	if (buf == NULL) {
+		tb_error(r, "could not allocate memory for buf");
+		return;
+	}
+
+	getNegotiatedVersion(ssl, buf);
+	buf[kHeaderSize] = key_type;
+	memcpy(buf + kHeaderSize + 1, ekm, ekm_len);
+
+	tb_set_env_var(r, tb_cfg_get_context_env_var(cfg), buf, buf_len);
 }
 
 static int tb_post_read_request(request_rec *r) {
@@ -316,6 +358,9 @@ static int tb_post_read_request(request_rec *r) {
 	else
 		tb_debug(r, "no referred token binding ID received");
 
+	tb_draft_campbell_tokbind_tls_term(r, cfg, get_ssl_from_request_fn(r),
+			tls_key_type, ekm, TB_HASH_LEN);
+
 	return DECLINED;
 }
 
@@ -331,6 +376,7 @@ void *tb_create_server_config(apr_pool_t *pool, server_rec *svr) {
 	c->sec_header_name = NULL;
 	c->provided_env_var = NULL;
 	c->referred_env_var = NULL;
+	c->context_env_var = NULL;
 	return c;
 }
 
@@ -350,6 +396,9 @@ void *tb_merge_server_config(apr_pool_t *pool, void *BASE, void *ADD) {
 	c->referred_env_var =
 			add->referred_env_var != NULL ?
 					add->referred_env_var : base->referred_env_var;
+	c->context_env_var =
+			add->context_env_var != NULL ?
+					add->context_env_var : base->context_env_var;
 	return c;
 }
 
@@ -406,6 +455,12 @@ static const command_rec tb_cmds[] = {
 			NULL,
 			RSRC_CONF,
 			"Set the environment variable name in which the Referred Token Binding ID will be passed."),
+		AP_INIT_TAKE1(
+			"TokenBindingContextEnvVar",
+			tb_cfg_set_context_env_var,
+			NULL,
+			RSRC_CONF,
+			"Set the environment variable name in which the Token Binding Context re. draft_campbell_tokbind_tls_term will be passed."),
 		{ NULL }
 };
 

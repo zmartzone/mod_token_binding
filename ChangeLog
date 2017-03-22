@@ -1,4 +1,8 @@
 3/22/2017
+- pass Token-Binding-Context environment variable according to draft_campbell_tokbind_tls_term
+- version 0.2.0
+
+3/22/2017
 - refactor: remove unused hooks, decrease logging
 - make header and environment variables configurable
 - version 0.1.3
