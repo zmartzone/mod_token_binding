@@ -64,7 +64,7 @@
 module AP_MODULE_DECLARE_DATA token_binding_module;
 
 #define tb_log(r, level, fmt, ...) ap_log_rerror(APLOG_MARK, level, 0, r,"# %s: %s", __FUNCTION__, apr_psprintf(r->pool, fmt, ##__VA_ARGS__))
-#define tb_slog(s, level, fmt, ...) ap_log_error(APLOG_MARK, level, 0, s, "## %s: %s", __FUNCTION__, apr_psprintf(s->process->pool, fmt, ##__VA_ARGS__))
+#define tb_slog(s, level, fmt, ...) ap_log_error(APLOG_MARK, level, 0, s, "# %s: %s", __FUNCTION__, apr_psprintf(s->process->pool, fmt, ##__VA_ARGS__))
 
 #define tb_debug(r, fmt, ...) tb_log(r, APLOG_DEBUG, fmt, ##__VA_ARGS__)
 #define tb_info(r, fmt, ...)  tb_log(r, APLOG_INFO, fmt, ##__VA_ARGS__)
@@ -76,9 +76,19 @@ module AP_MODULE_DECLARE_DATA token_binding_module;
 #define tb_swarn(s, fmt, ...) tb_slog(s, APLOG_WARNING, fmt, ##__VA_ARGS__)
 #define tb_serror(s, fmt, ...) tb_slog(s, APLOG_ERR, fmt, ##__VA_ARGS__)
 
+#define TB_CFG_POS_INT_UNSET                  -1
+
+#define TB_CFG_ENABLED_DEFAULT                 TRUE
+#define TB_CFG_HEADER_NAME_DEFAULT            "Sec-Token-Binding"
+#define TB_CFG_PROVIDED_ENV_VAR_DEFAULT       "Token-Binding-ID-Provided"
+#define TB_CFG_REFERRED_ENV_VAR_DEFAULT       "Token-Binding-ID-Referred"
+
 typedef struct {
 	int enabled;
 	tbCache *cache;
+	const char *sec_header_name;
+	const char *provided_env_var;
+	const char *referred_env_var;
 } tb_server_config;
 
 APR_DECLARE_OPTIONAL_FN(int, tb_add_ext, (server_rec *s, SSL_CTX *ctx));
@@ -90,9 +100,63 @@ static APR_OPTIONAL_FN_TYPE(ssl_is_https) *ssl_is_https_fn = NULL;
 static APR_OPTIONAL_FN_TYPE(ssl_get_ssl_from_request) *get_ssl_from_request_fn =
 		NULL;
 
+static const char *tb_cfg_set_enabled(cmd_parms *cmd, void *struct_ptr,
+		const char *arg) {
+	tb_server_config *cfg = (tb_server_config *) ap_get_module_config(
+			cmd->server->module_config, &token_binding_module);
+	if (strcmp(arg, "Off") == 0)
+		cfg->enabled = 0;
+	if (strcmp(arg, "On") == 0)
+		cfg->enabled = 1;
+	return "Invalid value: must be \"On\" or \"Off\"";
+}
+
+static apr_byte_t tb_cfg_get_enabled(tb_server_config *cfg) {
+	return (cfg->enabled != TB_CFG_POS_INT_UNSET) ?
+			(cfg->enabled > 0) : TB_CFG_ENABLED_DEFAULT;
+}
+
+static const char *tb_cfg_set_sec_header_name(cmd_parms *cmd, void *struct_ptr,
+		const char *arg) {
+	tb_server_config *cfg = (tb_server_config *) ap_get_module_config(
+			cmd->server->module_config, &token_binding_module);
+	cfg->sec_header_name = arg;
+	return NULL;
+}
+
+static const char * tb_cfg_get_sec_header_name(tb_server_config *cfg) {
+	return cfg->sec_header_name ?
+			cfg->sec_header_name : TB_CFG_HEADER_NAME_DEFAULT;
+}
+
+static const char *tb_cfg_set_provided_env_var(cmd_parms *cmd, void *struct_ptr,
+		const char *arg) {
+	tb_server_config *cfg = (tb_server_config *) ap_get_module_config(
+			cmd->server->module_config, &token_binding_module);
+	cfg->provided_env_var = arg;
+	return NULL;
+}
+
+static const char * tb_cfg_get_provided_env_var(tb_server_config *cfg) {
+	return cfg->provided_env_var ?
+			cfg->provided_env_var : TB_CFG_PROVIDED_ENV_VAR_DEFAULT;
+}
+
+static const char *tb_cfg_set_referred_env_var(cmd_parms *cmd, void *struct_ptr,
+		const char *arg) {
+	tb_server_config *cfg = (tb_server_config *) ap_get_module_config(
+			cmd->server->module_config, &token_binding_module);
+	cfg->referred_env_var = arg;
+	return NULL;
+}
+
+static const char * tb_cfg_get_referred_env_var(tb_server_config *cfg) {
+	return cfg->referred_env_var ?
+			cfg->referred_env_var : TB_CFG_REFERRED_ENV_VAR_DEFAULT;
+}
+
 // called dynamically from mod_ssl
 static int tb_add_ext(server_rec *s, SSL_CTX *ctx) {
-
 	tb_sdebug(s, "enter");
 
 	if (!tbTLSLibInit()) {
@@ -100,50 +164,16 @@ static int tb_add_ext(server_rec *s, SSL_CTX *ctx) {
 		return -1;
 	}
 
-	tb_sdebug(s, "tbTLSLibInit() succeeded");
-
 	if (!tbEnableTLSTokenBindingNegotiation(ctx)) {
 		tb_serror(s, "tbEnableTLSTokenBindingNegotiation() failed");
 		return -1;
 	}
 
-	tb_sdebug(s, "tbEnableTLSTokenBindingNegotiation() succeeded");
-
 	return 1;
 }
 
-static int tb_fixup_handler(request_rec *r) {
-	tb_debug(r, "enter");
-	return OK;
-}
-
-static apr_status_t tb_cleanup_handler(void *data) {
-	server_rec *s = (server_rec *) data;
-	tb_sinfo(s, "%s - shutdown", NAMEVERSION);
-	return APR_SUCCESS;
-}
-
-static int tb_post_config_handler(apr_pool_t *pool, apr_pool_t *p1,
-		apr_pool_t *p2, server_rec *s) {
-	tb_sinfo(s, "%s - init", NAMEVERSION);
-	apr_pool_cleanup_register(pool, s, tb_cleanup_handler,
-			apr_pool_cleanup_null);
-	return OK;
-}
-
-static const char TB_HDR_NAME_SEC_TOKEN_BINDING[] = "Sec-Token-Binding";
-static const char TB_ENV_NAME_TOKEN_BINDING_PROVIDED[] =
-		"Provided-Token-Binding-ID";
-static const char TB_ENV_NAME_TOKEN_BINDING_REFERRED[] =
-		"Referred-Token-Binding-ID";
-
 static void tb_set_env_var(request_rec *r, const char *name,
 		uint8_t* tokbind_id, size_t tokbind_id_len) {
-
-	tb_debug(r, "enter: %pp, %d", tokbind_id, (int )tokbind_id_len);
-
-	if ((tokbind_id == NULL) || (tokbind_id_len <= 0))
-		return;
 
 	size_t env_var_len = CalculateBase64EscapedLen(tokbind_id_len, false);
 	char* env_var_str = apr_pcalloc(r->pool, env_var_len + 1);
@@ -154,21 +184,18 @@ static void tb_set_env_var(request_rec *r, const char *name,
 			env_var_str);
 
 	apr_table_set(r->subprocess_env, name, env_var_str);
-
 }
 
 static int tb_is_enabled(request_rec *r, tb_server_config *c,
 		tbKeyType *tls_key_type) {
 
-	tb_debug(r,
-			"enter: enabled=%d, ssl_is_https_fn=%pp, get_ssl_from_request_fn=%pp",
-			c->enabled, ssl_is_https_fn, get_ssl_from_request_fn);
-
-	if (c->enabled == 0)
+	if (tb_cfg_get_enabled(c) == FALSE) {
+		tb_debug(r, "token binding is not enabled in the configuration");
 		return 0;
+	}
 
 	if (ssl_is_https_fn == NULL) {
-		tb_error(r,
+		tb_warn(r,
 				"no ssl_is_https_fn function found: perhaps mod_ssl is not loaded?");
 		return 0;
 	}
@@ -178,7 +205,6 @@ static int tb_is_enabled(request_rec *r, tb_server_config *c,
 				"no ssl_is_https_fn returned != 1: looks like this is not an SSL connection");
 		return 0;
 	}
-	tb_debug(r, "ssl_is_https_fn returned 1: this is an SSL connection");
 
 	if (get_ssl_from_request_fn == NULL) {
 		tb_warn(r,
@@ -187,27 +213,26 @@ static int tb_is_enabled(request_rec *r, tb_server_config *c,
 	}
 
 	if (!tbTokenBindingEnabled(get_ssl_from_request_fn(r), tls_key_type)) {
-		tb_warn(r, "Token Binding is not enabled");
+		tb_warn(r, "Token Binding is not enabled by the peer");
 		return 0;
 	}
 
-	tb_debug(r, "Token Binding is enabled: key_type=%d!", *tls_key_type);
+	tb_debug(r, "Token Binding is enabled on this connection: key_type=%d!", *tls_key_type);
 
 	return 1;
 }
 
-static int tb_get_decoded_header(request_rec *r, char **message,
-		size_t *message_len) {
-	const char *header = apr_table_get(r->headers_in,
-			TB_HDR_NAME_SEC_TOKEN_BINDING);
+static int tb_get_decoded_header(request_rec *r, tb_server_config *cfg,
+		char **message, size_t *message_len) {
+
+	const char *hdr_name = tb_cfg_get_sec_header_name(cfg);
+	const char *header = apr_table_get(r->headers_in, hdr_name);
 	if (header == NULL) {
-		tb_warn(r, "no \"%s\" header found in request",
-				TB_HDR_NAME_SEC_TOKEN_BINDING);
+		tb_warn(r, "no \"%s\" header found in request", hdr_name);
 		return 0;
 	}
 
-	tb_debug(r, "Token Binding header found: %s=%s",
-			TB_HDR_NAME_SEC_TOKEN_BINDING, header);
+	tb_debug(r, "Token Binding header found: %s=%s", hdr_name, header);
 
 	size_t maxlen = strlen(header);
 	*message = apr_pcalloc(r->pool, maxlen);
@@ -228,12 +253,12 @@ static int tb_post_read_request(request_rec *r) {
 	char *message = NULL;
 	size_t message_len;
 
-	tb_debug(r, "enter: enabled=%d", cfg->enabled);
+	tb_debug(r, "enter");
 
 	if (tb_is_enabled(r, cfg, &tls_key_type) == 0)
 		return DECLINED;
 
-	if (tb_get_decoded_header(r, &message, &message_len) == 0)
+	if (tb_get_decoded_header(r, cfg, &message, &message_len) == 0)
 		return HTTP_UNAUTHORIZED;
 
 	uint8_t* out_tokbind_id = NULL;
@@ -244,120 +269,102 @@ static int tb_post_read_request(request_rec *r) {
 	if (tbCacheMessageAlreadyVerified(cfg->cache, (uint8_t*) message,
 			message_len, &out_tokbind_id, &out_tokbind_id_len,
 			&referred_tokbind_id, &referred_tokbind_id_len)) {
-		if (referred_tokbind_id != NULL) {
-			tb_debug(r,
-					"Token Binding header with referred TokenBindingID was found in the cache");
-		} else {
-			tb_debug(r, "Token Binding header was found in the cache");
-		}
-		tb_set_env_var(r, TB_ENV_NAME_TOKEN_BINDING_PROVIDED, out_tokbind_id,
-				out_tokbind_id_len);
-		tb_set_env_var(r, TB_ENV_NAME_TOKEN_BINDING_REFERRED,
-				referred_tokbind_id, referred_tokbind_id_len);
+
+		tb_debug(r, "tbCacheMessageAlreadyVerified returned true");
+
+		if ((out_tokbind_id != NULL) && (out_tokbind_id_len > 0))
+			tb_set_env_var(r, tb_cfg_get_provided_env_var(cfg), out_tokbind_id,
+					out_tokbind_id_len);
+		else
+			tb_debug(r, "no provided token binding ID found in cache");
+
+		if ((referred_tokbind_id != NULL) && (referred_tokbind_id_len > 0))
+			tb_set_env_var(r, tb_cfg_get_referred_env_var(cfg),
+					referred_tokbind_id, referred_tokbind_id_len);
+		else
+			tb_debug(r, "no referred token binding ID found in cache");
+
 		return DECLINED;
 	}
-
-	tb_debug(r,
-			"call tbCacheMessageAlreadyVerified returned false; call tbGetEKM");
 
 	uint8_t ekm[TB_HASH_LEN];
 	if (!tbGetEKM(get_ssl_from_request_fn(r), ekm)) {
-		tb_warn(r, "unable to get EKM from TLS connection\n");
+		tb_warn(r, "unable to get EKM from TLS connection");
 		return DECLINED;
 	}
-
-	tb_debug(r,
-			"call tbGetEKM returned; call tbCacheVerifyTokenBindingMessage");
 
 	if (!tbCacheVerifyTokenBindingMessage(cfg->cache, (uint8_t*) message,
 			message_len, tls_key_type, ekm, &out_tokbind_id,
 			&out_tokbind_id_len, &referred_tokbind_id,
 			&referred_tokbind_id_len)) {
-		tb_error(r, "bad Token Binding header\n");
+		tb_error(r,
+				"tbCacheVerifyTokenBindingMessage returned false: bad Token Binding header");
 		return DECLINED;
 	}
 
 	tb_debug(r, "verified Token Binding header!");
 
-	tb_set_env_var(r, TB_ENV_NAME_TOKEN_BINDING_PROVIDED, out_tokbind_id,
-			out_tokbind_id_len);
-	tb_set_env_var(r, TB_ENV_NAME_TOKEN_BINDING_REFERRED, referred_tokbind_id,
-			referred_tokbind_id_len);
+	if ((out_tokbind_id != NULL) && (out_tokbind_id_len > 0))
+		tb_set_env_var(r, tb_cfg_get_provided_env_var(cfg), out_tokbind_id,
+				out_tokbind_id_len);
+	else
+		tb_debug(r, "no provided token binding ID received");
+
+	if ((referred_tokbind_id != NULL) && (referred_tokbind_id_len > 0))
+		tb_set_env_var(r, tb_cfg_get_referred_env_var(cfg), referred_tokbind_id,
+				referred_tokbind_id_len);
+	else
+		tb_debug(r, "no referred token binding ID received");
 
 	return DECLINED;
 }
 
 void *tb_create_server_config(apr_pool_t *pool, server_rec *svr) {
 	tb_server_config *c = apr_pcalloc(pool, sizeof(tb_server_config));
-	c->enabled = 1;
+	c->enabled = TB_CFG_POS_INT_UNSET;
+
 	uint64_t rand_seed = 0;
 	RAND_seed(&rand_seed, sizeof(uint64_t));
 	tbCacheLibInit(rand_seed);
+
 	c->cache = tbCacheCreate();
+	c->sec_header_name = NULL;
+	c->provided_env_var = NULL;
+	c->referred_env_var = NULL;
 	return c;
 }
 
 void *tb_merge_server_config(apr_pool_t *pool, void *BASE, void *ADD) {
 	tb_server_config *c = apr_pcalloc(pool, sizeof(tb_server_config));
+	tb_server_config *base = BASE;
 	tb_server_config *add = ADD;
-	c->enabled = add->enabled;
+	c->enabled =
+			add->enabled != TB_CFG_POS_INT_UNSET ? add->enabled : base->enabled;
 	c->cache = add->cache;
+	c->sec_header_name =
+			add->sec_header_name != NULL ?
+					add->sec_header_name : base->sec_header_name;
+	c->provided_env_var =
+			add->provided_env_var != NULL ?
+					add->provided_env_var : base->provided_env_var;
+	c->referred_env_var =
+			add->referred_env_var != NULL ?
+					add->referred_env_var : base->referred_env_var;
 	return c;
 }
 
-#define TB_FIXUP_HEADERS_ERR "TB_FIXUP_HEADERS_ERR"
-#define TB_FIXUP_HEADERS_OUT "TB_FIXUP_HEADERS_OUT"
-
-static void tb_insert_output_filter(request_rec *r) {
-	tb_server_config *cfg = (tb_server_config*) ap_get_module_config(
-			r->server->module_config, &token_binding_module);
-
-	tb_debug(r, "enter: enabled=%d", cfg->enabled);
-
-	if (cfg->enabled == 1)
-		ap_add_output_filter(TB_FIXUP_HEADERS_OUT, NULL, r, r->connection);
+static apr_status_t tb_cleanup_handler(void *data) {
+	server_rec *s = (server_rec *) data;
+	tb_sinfo(s, "%s - shutdown", NAMEVERSION);
+	return APR_SUCCESS;
 }
 
-static void tb_insert_error_filter(request_rec *r) {
-	tb_server_config *cfg = (tb_server_config*) ap_get_module_config(
-			r->server->module_config, &token_binding_module);
-
-	tb_debug(r, "enter: enabled=%d", cfg->enabled);
-
-	if (cfg->enabled == 1)
-		ap_add_output_filter(TB_FIXUP_HEADERS_ERR, NULL, r, r->connection);
-}
-
-static apr_status_t tb_output_filter(ap_filter_t *f, apr_bucket_brigade *in) {
-	request_rec *r = f->r;
-	tb_server_config *cfg = (tb_server_config*) ap_get_module_config(
-			r->server->module_config, &token_binding_module);
-
-	tb_debug(r, "enter: enabled=%d", cfg->enabled);
-
-	//do_headers_fixup(f->r, f->r->err_headers_out, dirconf->fixup_err, 0);
-	//do_headers_fixup(f->r, f->r->headers_out, dirconf->fixup_out, 0);
-
-	ap_remove_output_filter(f);
-
-	return ap_pass_brigade(f->next, in);
-}
-
-static apr_status_t tb_error_filter(ap_filter_t *f, apr_bucket_brigade *in) {
-	request_rec *r = f->r;
-	tb_server_config *cfg = (tb_server_config*) ap_get_module_config(
-			r->server->module_config, &token_binding_module);
-
-	tb_debug(r, "enter: enabled=%d", cfg->enabled);
-
-	/*
-	 * Add any header fields defined by "Header always" to r->err_headers_out.
-	 * Server-wide first, then per-directory to allow overriding.
-	 */
-	//do_headers_fixup(f->r, f->r->err_headers_out, dirconf->fixup_err, 0);
-	ap_remove_output_filter(f);
-
-	return ap_pass_brigade(f->next, in);
+static int tb_post_config_handler(apr_pool_t *pool, apr_pool_t *p1,
+		apr_pool_t *p2, server_rec *s) {
+	tb_sinfo(s, "%s - init", NAMEVERSION);
+	apr_pool_cleanup_register(pool, s, tb_cleanup_handler,
+			apr_pool_cleanup_null);
+	return OK;
 }
 
 static void tb_retrieve_optional_fn() {
@@ -367,40 +374,38 @@ static void tb_retrieve_optional_fn() {
 }
 
 static void tb_register_hooks(apr_pool_t *p) {
-	static const char * const aszSucc[] = { "mod_rewrite.c", NULL };
 	ap_hook_post_config(tb_post_config_handler, NULL, NULL, APR_HOOK_LAST);
 	ap_hook_post_read_request(tb_post_read_request, NULL, NULL, APR_HOOK_LAST);
-	ap_hook_fixups(tb_fixup_handler, NULL, aszSucc, APR_HOOK_FIRST);
-	ap_register_output_filter(TB_FIXUP_HEADERS_OUT, tb_output_filter,
-			NULL, AP_FTYPE_CONTENT_SET);
-	ap_register_output_filter(TB_FIXUP_HEADERS_ERR, tb_error_filter,
-			NULL, AP_FTYPE_CONTENT_SET);
-	ap_hook_insert_filter(tb_insert_output_filter, NULL, NULL, APR_HOOK_LAST);
-	ap_hook_insert_error_filter(tb_insert_error_filter, NULL, NULL,
-			APR_HOOK_LAST);
 	ap_hook_optional_fn_retrieve(tb_retrieve_optional_fn, NULL, NULL,
 			APR_HOOK_MIDDLE);
 	APR_REGISTER_OPTIONAL_FN(tb_add_ext);
 }
 
-static const char *tb_set_enabled(cmd_parms *cmd, void *struct_ptr,
-		const char *arg) {
-	tb_server_config *cfg = (tb_server_config *) ap_get_module_config(
-			cmd->server->module_config, &token_binding_module);
-	if (strcmp(arg, "Off") == 0)
-		cfg->enabled = 0;
-	if (strcmp(arg, "On") == 0)
-		cfg->enabled = 1;
-	return "Invalid value: must be \"On\" or \"Off\"";
-}
-
 static const command_rec tb_cmds[] = {
 		AP_INIT_TAKE1(
-				"TokenBindingEnabled",
-				tb_set_enabled,
-				NULL,
-				RSRC_CONF,
-				"Enable or disable mod_token_binding"),
+			"TokenBindingEnabled",
+			tb_cfg_set_enabled,
+			NULL,
+			RSRC_CONF,
+			"Enable or disable mod_token_binding"),
+		AP_INIT_TAKE1(
+			"TokenBindingSecHeaderName",
+			tb_cfg_set_sec_header_name,
+			NULL,
+			RSRC_CONF,
+			"Set the HTTP header name in which the Token Binding ID will be provided."),
+		AP_INIT_TAKE1(
+			"TokenBindingProvidedEnvVar",
+			tb_cfg_set_provided_env_var,
+			NULL,
+			RSRC_CONF,
+			"Set the environment variable name in which the Provided Token Binding ID will be passed."),
+		AP_INIT_TAKE1(
+			"TokenBindingReferredEnvVar",
+			tb_cfg_set_referred_env_var,
+			NULL,
+			RSRC_CONF,
+			"Set the environment variable name in which the Referred Token Binding ID will be passed."),
 		{ NULL }
 };
 

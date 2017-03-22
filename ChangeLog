@@ -1,3 +1,8 @@
+3/22/2017
+- refactor: remove unused hooks, decrease logging
+- make header and environment variables configurable
+- version 0.1.3
+
 2/23/2017
 - fix setting environment variables on cache hit
 - fix resume (docker)
