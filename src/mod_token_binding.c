@@ -106,10 +106,14 @@ static const char *tb_cfg_set_enabled(cmd_parms *cmd, void *struct_ptr,
 		const char *arg) {
 	tb_server_config *cfg = (tb_server_config *) ap_get_module_config(
 			cmd->server->module_config, &token_binding_module);
-	if (strcmp(arg, "Off") == 0)
+	if (strcmp(arg, "Off") == 0) {
 		cfg->enabled = 0;
-	if (strcmp(arg, "On") == 0)
+		return NULL;
+	}
+	if (strcmp(arg, "On") == 0) {
 		cfg->enabled = 1;
+		return NULL;
+	}
 	return "Invalid value: must be \"On\" or \"Off\"";
 }
 
