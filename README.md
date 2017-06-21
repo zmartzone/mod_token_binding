@@ -1,16 +1,6 @@
 # mod_token_binding
-Toking Binding for Apache HTTP Server 2.x
 
-Requires:
-- OpenSSL 1.1.x  
-  support for Extended Master Secret  
-  with a patch to fix resume with custom extensions:  
-  https://github.com/zmartzone/token_bind/blob/master/example/custom_ext_resume.patch
-- HTTPd 2.4.x-openssl-1.1.0-compat  
-  with a patch to install the Token Binding Extension handler:  
-  https://github.com/zmartzone/httpd/commit/0faae87c00d94ce4392b177e83f397f2fcc4abb3
-- Google's Token Bind library  
-  https://github.com/zmartzone/token_bind  
+A pluggable module implementation of Token Binding for the Apache HTTPd web server version 2.4.x.
 
 ## Overview
 
@@ -37,3 +27,15 @@ There’s a sample `Dockerfile` under `test/docker` to get you to a quick functi
 ## Application
 
 Since version 2.2.0 [mod_auth_openidc](https://github.com/pingidentity/mod_auth_openidc) can be configured to use the negotiated environment variables to bind its session cookie to the TLS connection and to perform OpenID Connect Token Bound Authentication for an ID Token as defined in [http://openid.net/specs/openid-connect-token-bound-authentication-1_0.html](http://openid.net/specs/openid-connect-token-bound-authentication-1_0.html) using its `OIDCTokenBindingPolicy` directive as described in https://github.com/pingidentity/mod_auth_openidc/blob/v2.3.0/auth_openidc.conf#L205.
+
+## Requirements
+
+- OpenSSL 1.1.x  
+  support for Extended Master Secret  
+  with a patch to fix resume with custom extensions:  
+  https://github.com/zmartzone/token_bind/blob/master/example/custom_ext_resume.patch
+- HTTPd 2.4.x-openssl-1.1.0-compat  
+  with a patch to install the Token Binding Extension handler:  
+  https://github.com/zmartzone/httpd/commit/0faae87c00d94ce4392b177e83f397f2fcc4abb3
+- Google's Token Bind library  
+  https://github.com/zmartzone/token_bind  
