@@ -291,6 +291,23 @@ static void tb_draft_campbell_tokbind_tls_term(request_rec *r,
 	tb_set_env_var(r, tb_cfg_get_context_env_var(cfg), buf, buf_len);
 }
 
+static void tb_draft_campbell_tokbind_ttrp(request_rec *r,
+		tb_server_config *cfg, uint8_t* out_tokbind_id,
+		size_t out_tokbind_id_len, uint8_t* referred_tokbind_id,
+		size_t referred_tokbind_id_len) {
+	if ((out_tokbind_id != NULL) && (out_tokbind_id_len > 0))
+		tb_set_env_var(r, tb_cfg_get_provided_env_var(cfg), out_tokbind_id,
+				out_tokbind_id_len);
+	else
+		tb_debug(r, "no provided token binding ID found");
+
+	if ((referred_tokbind_id != NULL) && (referred_tokbind_id_len > 0))
+		tb_set_env_var(r, tb_cfg_get_referred_env_var(cfg), referred_tokbind_id,
+				referred_tokbind_id_len);
+	else
+		tb_debug(r, "no referred token binding ID found");
+}
+
 static int tb_post_read_request(request_rec *r) {
 
 	tb_server_config *cfg = (tb_server_config*) ap_get_module_config(
@@ -315,21 +332,10 @@ static int tb_post_read_request(request_rec *r) {
 	if (tbCacheMessageAlreadyVerified(cfg->cache, (uint8_t*) message,
 			message_len, &out_tokbind_id, &out_tokbind_id_len,
 			&referred_tokbind_id, &referred_tokbind_id_len)) {
-
 		tb_debug(r, "tbCacheMessageAlreadyVerified returned true");
-
-		if ((out_tokbind_id != NULL) && (out_tokbind_id_len > 0))
-			tb_set_env_var(r, tb_cfg_get_provided_env_var(cfg), out_tokbind_id,
-					out_tokbind_id_len);
-		else
-			tb_debug(r, "no provided token binding ID found in cache");
-
-		if ((referred_tokbind_id != NULL) && (referred_tokbind_id_len > 0))
-			tb_set_env_var(r, tb_cfg_get_referred_env_var(cfg),
-					referred_tokbind_id, referred_tokbind_id_len);
-		else
-			tb_debug(r, "no referred token binding ID found in cache");
-
+		tb_draft_campbell_tokbind_ttrp(r, cfg, out_tokbind_id,
+				out_tokbind_id_len, referred_tokbind_id,
+				referred_tokbind_id_len);
 		return DECLINED;
 	}
 
@@ -350,18 +356,8 @@ static int tb_post_read_request(request_rec *r) {
 
 	tb_debug(r, "verified Token Binding header!");
 
-	if ((out_tokbind_id != NULL) && (out_tokbind_id_len > 0))
-		tb_set_env_var(r, tb_cfg_get_provided_env_var(cfg), out_tokbind_id,
-				out_tokbind_id_len);
-	else
-		tb_debug(r, "no provided token binding ID received");
-
-	if ((referred_tokbind_id != NULL) && (referred_tokbind_id_len > 0))
-		tb_set_env_var(r, tb_cfg_get_referred_env_var(cfg), referred_tokbind_id,
-				referred_tokbind_id_len);
-	else
-		tb_debug(r, "no referred token binding ID received");
-
+	tb_draft_campbell_tokbind_ttrp(r, cfg, out_tokbind_id, out_tokbind_id_len,
+			referred_tokbind_id, referred_tokbind_id_len);
 	tb_draft_campbell_tokbind_tls_term(r, cfg, get_ssl_from_request_fn(r),
 			tls_key_type, ekm, TB_HASH_LEN);
 
