@@ -80,8 +80,8 @@ module AP_MODULE_DECLARE_DATA token_binding_module;
 
 #define TB_CFG_ENABLED_DEFAULT                 TRUE
 #define TB_CFG_HEADER_NAME_DEFAULT            "Sec-Token-Binding"
-#define TB_CFG_PROVIDED_ENV_VAR_DEFAULT       "Token-Binding-ID-Provided"
-#define TB_CFG_REFERRED_ENV_VAR_DEFAULT       "Token-Binding-ID-Referred"
+#define TB_CFG_PROVIDED_ENV_VAR_DEFAULT       "Provided-Token-Binding-ID"
+#define TB_CFG_REFERRED_ENV_VAR_DEFAULT       "Referred-Token-Binding-ID"
 #define TB_CFG_CONTEXT_ENV_VAR_DEFAULT        "Token-Binding-Context"
 
 typedef struct {
@@ -440,31 +440,31 @@ static const command_rec tb_cmds[] = {
 			tb_cfg_set_enabled,
 			NULL,
 			RSRC_CONF,
-			"Enable or disable mod_token_binding"),
+			"enable or disable mod_token_binding. (default: On)"),
 		AP_INIT_TAKE1(
 			"TokenBindingSecHeaderName",
 			tb_cfg_set_sec_header_name,
 			NULL,
 			RSRC_CONF,
-			"Set the HTTP header name in which the Token Binding ID will be provided."),
+			"set the HTTP request header name in which the Token Binding ID will be provided. (default: " TB_CFG_HEADER_NAME_DEFAULT ")"),
 		AP_INIT_TAKE1(
 			"TokenBindingProvidedEnvVar",
 			tb_cfg_set_provided_env_var,
 			NULL,
 			RSRC_CONF,
-			"Set the environment variable name in which the Provided Token Binding ID will be passed."),
+			"set the environment variable name in which the Provided Token Binding ID will be passed. (default: " TB_CFG_PROVIDED_ENV_VAR_DEFAULT ")"),
 		AP_INIT_TAKE1(
 			"TokenBindingReferredEnvVar",
 			tb_cfg_set_referred_env_var,
 			NULL,
 			RSRC_CONF,
-			"Set the environment variable name in which the Referred Token Binding ID will be passed."),
+			"set the environment variable name in which the Referred Token Binding ID will be passed. (default: " TB_CFG_REFERRED_ENV_VAR_DEFAULT ")"),
 		AP_INIT_TAKE1(
 			"TokenBindingContextEnvVar",
 			tb_cfg_set_context_env_var,
 			NULL,
 			RSRC_CONF,
-			"Set the environment variable name in which the Token Binding Context re. draft_campbell_tokbind_tls_term will be passed."),
+			"set the environment variable name in which the Token Binding Context re. draft_campbell_tokbind_tls_term will be passed. (default: " TB_CFG_CONTEXT_ENV_VAR_DEFAULT ")"),
 		{ NULL }
 };
 

@@ -1,3 +1,9 @@
+7/6/2017
+- update environment variable names to match draft-campbell-tokbind-ttrp-00
+  i.e. using `Provided-Token-Binding-ID` and `Referred-Token-Binding-ID`
+- fix Dockerfile so it uses the patched branch for token_bind that exposes getNegotiatedVersion
+- version 0.3.0
+
 3/23/2017
 - fix config TokenBindingEnabled setting
 - version 0.2.1

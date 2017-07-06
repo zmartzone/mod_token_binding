@@ -34,6 +34,7 @@ RUN cd httpd && ./buildconf && ./configure --enable-ssl=shared --with-ssl=${TARG
 # mod_token_binding
 #
 RUN git clone https://github.com/zmartzone/token_bind.git
+RUN cd token_bind && git checkout expose-negotiated-version
 RUN git clone https://github.com/zmartzone/mod_token_binding.git
 RUN cd mod_token_binding && ./autogen.sh && ./configure --with-token-binding=/root/token_bind --with-apxs2=${TARGET_DIR}/bin/apxs && make install
 
