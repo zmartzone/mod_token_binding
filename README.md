@@ -38,4 +38,5 @@ Since version 2.2.0 [mod_auth_openidc](https://github.com/pingidentity/mod_auth_
   with a patch to install the Token Binding Extension handler:  
   https://github.com/zmartzone/httpd/commit/0faae87c00d94ce4392b177e83f397f2fcc4abb3
 - Google's Token Bind library  
-  https://github.com/zmartzone/token_bind  
+  with a patch to expose the `getNegotiatedVersion` function:
+  https://github.com/zmartzone/token_bind/tree/expose-negotiated-version  
