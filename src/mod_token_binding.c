@@ -200,7 +200,7 @@ static void tb_set_var(request_rec *r, const char *env_var_name,
 
 	size_t len = CalculateBase64EscapedLen(tokbind_id_len, false);
 	char* val = apr_pcalloc(r->pool, len + 1);
-	WebSafeBase64Escape((const char *) tokbind_id, tokbind_id_len, val, val,
+	WebSafeBase64Escape((const char *) tokbind_id, tokbind_id_len, val, len,
 			false);
 
 	if (env_var_name) {
