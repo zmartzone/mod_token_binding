@@ -1,12 +1,12 @@
 7/17/2017
-- fix typo in call to WebSafeBase64Escape
-- version 0.3.1.1
-
-7/17/2017
 - set headers by default as well (in addition to env vars) and sanitize them (more) explicitly;
   the header names are fixed/defined anyway and it makes for a more secure setup without external dependencies
 - change Docker demo to point to httpbin.org and display headers
 - version 0.3.1
+- fix typo in call to WebSafeBase64Escape
+- version 0.3.1.1
+- always clean headers in a case-insensitive way
+- version 0.3.2
 
 7/6/2017
 - update environment variable names to match draft-campbell-tokbind-ttrp-00

@@ -51,6 +51,7 @@
 #include <apr_strings.h>
 #include <apr_hooks.h>
 #include <apr_optional.h>
+#include <apr_lib.h>
 
 #include "openssl/rand.h"
 #include <openssl/ssl.h>
@@ -282,8 +283,6 @@ static void tb_draft_campbell_tokbind_tls_term(request_rec *r,
 	uint8_t* buf;
 	size_t buf_len;
 
-	apr_table_unset(r->headers_in, TB_CFG_TB_CONTEXT_HDR_NAME);
-
 	if (key_type >= TB_INVALID_KEY_TYPE) {
 		tb_error(r, "key_type is invalid");
 		return;
@@ -309,20 +308,59 @@ static void tb_draft_campbell_tokbind_ttrp(request_rec *r,
 		size_t out_tokbind_id_len, uint8_t* referred_tokbind_id,
 		size_t referred_tokbind_id_len) {
 
-	apr_table_unset(r->headers_in, TB_CFG_PROVIDED_TBID_HDR_NAME);
 	if ((out_tokbind_id != NULL) && (out_tokbind_id_len > 0))
 		tb_set_var(r, tb_cfg_get_provided_env_var(cfg),
 				TB_CFG_PROVIDED_TBID_HDR_NAME, out_tokbind_id, out_tokbind_id_len);
 	else
 		tb_debug(r, "no provided token binding ID found");
 
-	apr_table_unset(r->headers_in, TB_CFG_REFERRED_TBID_HDR_NAME);
 	if ((referred_tokbind_id != NULL) && (referred_tokbind_id_len > 0))
 		tb_set_var(r, tb_cfg_get_referred_env_var(cfg),
 				TB_CFG_REFERRED_TBID_HDR_NAME, referred_tokbind_id,
 				referred_tokbind_id_len);
 	else
 		tb_debug(r, "no referred token binding ID found");
+}
+
+static int tb_char_to_env(int c) {
+	return apr_isalnum(c) ? apr_toupper(c) : '_';
+}
+
+static int tb_strnenvcmp(const char *a, const char *b) {
+	int d, i = 0;
+	while (1) {
+		if (!*a && !*b)
+			return 0;
+		if (*a && !*b)
+			return 1;
+		if (!*a && *b)
+			return -1;
+		d = tb_char_to_env(*a) - tb_char_to_env(*b);
+		if (d)
+			return d;
+		a++;
+		b++;
+		i++;
+	}
+	return 0;
+}
+
+static void tb_clean_header(request_rec *r, const char *name) {
+	const apr_array_header_t * const h = apr_table_elts(r->headers_in);
+	apr_table_t *clean_headers = apr_table_make(r->pool, h->nelts);
+	const apr_table_entry_t * const e = (const apr_table_entry_t *) h->elts;
+	int i = 0;
+	while (i < h->nelts) {
+		if (e[i].key != NULL) {
+			if (tb_strnenvcmp(e[i].key, name) != 0)
+				apr_table_addn(clean_headers, e[i].key, e[i].val);
+			else
+				tb_warn(r, "removing incoming request header (%s: %s)",
+						e[i].key, e[i].val);
+		}
+		i++;
+	}
+	r->headers_in = clean_headers;
 }
 
 static int tb_post_read_request(request_rec *r) {
@@ -334,6 +372,10 @@ static int tb_post_read_request(request_rec *r) {
 	size_t message_len;
 
 	tb_debug(r, "enter");
+
+	tb_clean_header(r, TB_CFG_TB_CONTEXT_HDR_NAME);
+	tb_clean_header(r, TB_CFG_PROVIDED_TBID_HDR_NAME);
+	tb_clean_header(r, TB_CFG_REFERRED_TBID_HDR_NAME);
 
 	if (tb_is_enabled(r, cfg, &tls_key_type) == 0)
 		return DECLINED;
