@@ -6,7 +6,7 @@ A pluggable module implementation of Token Binding for the Apache HTTPd web serv
 
 This module implements the Token Binding protocol as defined in [https://github.com/TokenBinding/Internet-Drafts](https://github.com/TokenBinding/Internet-Drafts) on HTTPs connections setup to `mod_ssl` running in an Apache webserver.
  
-It then sets environment variables with the results of that process so that other modules and applications running on top of it can use that to bind their tokens and cookies to the so-called Token Binding ID. The environment variables are:
+It then sets environment variables and headers with the results of that process so that other modules and applications running on top of (or behind) it can use that to bind their tokens and cookies to the so-called Token Binding ID. The environment variables/headers are:
 
 - `Provided-Token-Binding-ID`  
   The Provided Token Binding ID that the browser uses towards your Apache server conform [draft-campbell-tokbind-ttrp-00](https://tools.ietf.org/html/draft-campbell-tokbind-ttrp-00#section-2.1).
@@ -14,11 +14,6 @@ It then sets environment variables with the results of that process so that othe
   The Referred Token Binding ID (if any) that the User Agent used on the "leg" to a remote entity that you federate with conform [draft-campbell-tokbind-ttrp-00](https://tools.ietf.org/html/draft-campbell-tokbind-ttrp-00#section-2.1).
 - `Token-Binding-Context`  
   The key parameters negotiated on the Provided Token Binding ID conform [draft-campbell-tokbind-tls-term-00](https://tools.ietf.org/html/draft-campbell-tokbind-tls-term-00#section-2).
-
-One could also pass these results to the backend in a header as with e.g.:
-```
-RequestHeader set Provided-Token-Binding-ID "%{Provided-Token-Binding-ID}e"
-```
 
 ## Quickstart
 

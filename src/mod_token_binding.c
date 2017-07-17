@@ -78,6 +78,10 @@ module AP_MODULE_DECLARE_DATA token_binding_module;
 
 #define TB_CFG_POS_INT_UNSET                  -1
 
+#define TB_CFG_PROVIDED_TBID_HDR_NAME         "Provided-Token-Binding-ID"
+#define TB_CFG_REFERRED_TBID_HDR_NAME         "Referred-Token-Binding-ID"
+#define TB_CFG_TB_CONTEXT_HDR_NAME            "Token-Binding-Context"
+
 #define TB_CFG_ENABLED_DEFAULT                 TRUE
 #define TB_CFG_HEADER_NAME_DEFAULT            "Sec-Token-Binding"
 #define TB_CFG_PROVIDED_ENV_VAR_DEFAULT       "Provided-Token-Binding-ID"
@@ -191,18 +195,24 @@ static int tb_add_ext(server_rec *s, SSL_CTX *ctx) {
 	return 1;
 }
 
-static void tb_set_env_var(request_rec *r, const char *name,
-		uint8_t* tokbind_id, size_t tokbind_id_len) {
+static void tb_set_var(request_rec *r, const char *env_var_name,
+		const char *header_name, uint8_t* tokbind_id, size_t tokbind_id_len) {
 
-	size_t env_var_len = CalculateBase64EscapedLen(tokbind_id_len, false);
-	char* env_var_str = apr_pcalloc(r->pool, env_var_len + 1);
-	WebSafeBase64Escape((const char *) tokbind_id, tokbind_id_len, env_var_str,
-			env_var_len, false);
+	size_t len = CalculateBase64EscapedLen(tokbind_id_len, false);
+	char* val = apr_pcalloc(r->pool, len + 1);
+	WebSafeBase64Escape((const char *) tokbind_id, tokbind_id_len, val, val,
+			false);
 
-	tb_debug(r, "set Token Binding ID environment variable: %s=%s", name,
-			env_var_str);
+	if (env_var_name) {
+		tb_debug(r, "set Token Binding ID environment variable: %s=%s",
+				env_var_name, val);
+		apr_table_set(r->subprocess_env, env_var_name, val);
+	}
 
-	apr_table_set(r->subprocess_env, name, env_var_str);
+	if (header_name) {
+		tb_debug(r, "set Token Binding ID header: %s=%s", header_name, val);
+		apr_table_set(r->headers_in, header_name, val);
+	}
 }
 
 static int tb_is_enabled(request_rec *r, tb_server_config *c,
@@ -272,6 +282,8 @@ static void tb_draft_campbell_tokbind_tls_term(request_rec *r,
 	uint8_t* buf;
 	size_t buf_len;
 
+	apr_table_unset(r->headers_in, TB_CFG_TB_CONTEXT_HDR_NAME);
+
 	if (key_type >= TB_INVALID_KEY_TYPE) {
 		tb_error(r, "key_type is invalid");
 		return;
@@ -288,21 +300,26 @@ static void tb_draft_campbell_tokbind_tls_term(request_rec *r,
 	buf[kHeaderSize] = key_type;
 	memcpy(buf + kHeaderSize + 1, ekm, ekm_len);
 
-	tb_set_env_var(r, tb_cfg_get_context_env_var(cfg), buf, buf_len);
+	tb_set_var(r, tb_cfg_get_context_env_var(cfg), TB_CFG_TB_CONTEXT_HDR_NAME,
+			buf, buf_len);
 }
 
 static void tb_draft_campbell_tokbind_ttrp(request_rec *r,
 		tb_server_config *cfg, uint8_t* out_tokbind_id,
 		size_t out_tokbind_id_len, uint8_t* referred_tokbind_id,
 		size_t referred_tokbind_id_len) {
+
+	apr_table_unset(r->headers_in, TB_CFG_PROVIDED_TBID_HDR_NAME);
 	if ((out_tokbind_id != NULL) && (out_tokbind_id_len > 0))
-		tb_set_env_var(r, tb_cfg_get_provided_env_var(cfg), out_tokbind_id,
-				out_tokbind_id_len);
+		tb_set_var(r, tb_cfg_get_provided_env_var(cfg),
+				TB_CFG_PROVIDED_TBID_HDR_NAME, out_tokbind_id, out_tokbind_id_len);
 	else
 		tb_debug(r, "no provided token binding ID found");
 
+	apr_table_unset(r->headers_in, TB_CFG_REFERRED_TBID_HDR_NAME);
 	if ((referred_tokbind_id != NULL) && (referred_tokbind_id_len > 0))
-		tb_set_env_var(r, tb_cfg_get_referred_env_var(cfg), referred_tokbind_id,
+		tb_set_var(r, tb_cfg_get_referred_env_var(cfg),
+				TB_CFG_REFERRED_TBID_HDR_NAME, referred_tokbind_id,
 				referred_tokbind_id_len);
 	else
 		tb_debug(r, "no referred token binding ID found");

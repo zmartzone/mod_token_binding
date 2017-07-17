@@ -44,4 +44,3 @@ RUN cd mod_token_binding && ./autogen.sh && ./configure --with-token-binding=/ro
 RUN cd ${TARGET_DIR}/conf/ && /usr/bin/openssl req -x509 -newkey rsa:2048 -keyout server.key -out server.crt -days 3650 -nodes -subj '/CN=localhost'
 COPY httpd.conf ${TARGET_DIR}/conf/
 COPY httpd-ssl.conf ${TARGET_DIR}/conf/extra/
-COPY index.shtml ${TARGET_DIR}/htdocs/
