@@ -17,7 +17,7 @@ It then sets environment variables and headers with the results of that process 
 
 ## Quickstart
 
-There’s a sample `Dockerfile` under `test/docker` to get you to a quick functional server setup with all of the prerequisites listed above and a very light-weight HTML sample application (processing server side includes).
+There’s a sample `Dockerfile` under `test/docker` to get you to a quick functional server setup with all of the prerequisites listed above that reverse proxies requests to http://httpbin.org/headers to show the resulting request headers.
 
 ## Application
 
