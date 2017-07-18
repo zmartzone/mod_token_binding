@@ -79,20 +79,19 @@ module AP_MODULE_DECLARE_DATA token_binding_module;
 
 #define TB_CFG_POS_INT_UNSET                  -1
 
+#define TB_CFG_SEC_TB_HDR_NAME                "Sec-Token-Binding"
 #define TB_CFG_PROVIDED_TBID_HDR_NAME         "Provided-Token-Binding-ID"
 #define TB_CFG_REFERRED_TBID_HDR_NAME         "Referred-Token-Binding-ID"
 #define TB_CFG_TB_CONTEXT_HDR_NAME            "Token-Binding-Context"
 
 #define TB_CFG_ENABLED_DEFAULT                 TRUE
-#define TB_CFG_HEADER_NAME_DEFAULT            "Sec-Token-Binding"
-#define TB_CFG_PROVIDED_ENV_VAR_DEFAULT       "Provided-Token-Binding-ID"
-#define TB_CFG_REFERRED_ENV_VAR_DEFAULT       "Referred-Token-Binding-ID"
-#define TB_CFG_CONTEXT_ENV_VAR_DEFAULT        "Token-Binding-Context"
+#define TB_CFG_PROVIDED_ENV_VAR_DEFAULT       TB_CFG_PROVIDED_TBID_HDR_NAME
+#define TB_CFG_REFERRED_ENV_VAR_DEFAULT       TB_CFG_REFERRED_TBID_HDR_NAME
+#define TB_CFG_CONTEXT_ENV_VAR_DEFAULT        TB_CFG_TB_CONTEXT_HDR_NAME
 
 typedef struct {
 	int enabled;
 	tbCache *cache;
-	const char *sec_header_name;
 	const char *provided_env_var;
 	const char *referred_env_var;
 	const char *context_env_var;
@@ -125,19 +124,6 @@ static const char *tb_cfg_set_enabled(cmd_parms *cmd, void *struct_ptr,
 static apr_byte_t tb_cfg_get_enabled(tb_server_config *cfg) {
 	return (cfg->enabled != TB_CFG_POS_INT_UNSET) ?
 			(cfg->enabled > 0) : TB_CFG_ENABLED_DEFAULT;
-}
-
-static const char *tb_cfg_set_sec_header_name(cmd_parms *cmd, void *struct_ptr,
-		const char *arg) {
-	tb_server_config *cfg = (tb_server_config *) ap_get_module_config(
-			cmd->server->module_config, &token_binding_module);
-	cfg->sec_header_name = arg;
-	return NULL;
-}
-
-static const char * tb_cfg_get_sec_header_name(tb_server_config *cfg) {
-	return cfg->sec_header_name ?
-			cfg->sec_header_name : TB_CFG_HEADER_NAME_DEFAULT;
 }
 
 static const char *tb_cfg_set_provided_env_var(cmd_parms *cmd, void *struct_ptr,
@@ -253,21 +239,64 @@ static int tb_is_enabled(request_rec *r, tb_server_config *c,
 	return 1;
 }
 
+static int tb_char_to_env(int c) {
+	return apr_isalnum(c) ? apr_toupper(c) : '_';
+}
+
+static int tb_strnenvcmp(const char *a, const char *b) {
+	int d, i = 0;
+	while (1) {
+		if (!*a && !*b)
+			return 0;
+		if (*a && !*b)
+			return 1;
+		if (!*a && *b)
+			return -1;
+		d = tb_char_to_env(*a) - tb_char_to_env(*b);
+		if (d)
+			return d;
+		a++;
+		b++;
+		i++;
+	}
+	return 0;
+}
+
+static void tb_clean_header(request_rec *r, const char *name) {
+	const apr_array_header_t * const h = apr_table_elts(r->headers_in);
+	apr_table_t *clean_headers = apr_table_make(r->pool, h->nelts);
+	const apr_table_entry_t * const e = (const apr_table_entry_t *) h->elts;
+	int i = 0;
+	while (i < h->nelts) {
+		if (e[i].key != NULL) {
+			if (tb_strnenvcmp(e[i].key, name) != 0)
+				apr_table_addn(clean_headers, e[i].key, e[i].val);
+			else
+				tb_warn(r, "removing incoming request header (%s: %s)",
+						e[i].key, e[i].val);
+		}
+		i++;
+	}
+	r->headers_in = clean_headers;
+}
+
 static int tb_get_decoded_header(request_rec *r, tb_server_config *cfg,
 		char **message, size_t *message_len) {
 
-	const char *hdr_name = tb_cfg_get_sec_header_name(cfg);
-	const char *header = apr_table_get(r->headers_in, hdr_name);
+	const char *header = apr_table_get(r->headers_in, TB_CFG_SEC_TB_HDR_NAME);
 	if (header == NULL) {
-		tb_warn(r, "no \"%s\" header found in request", hdr_name);
+		tb_warn(r, "no \"%s\" header found in request", TB_CFG_SEC_TB_HDR_NAME);
 		return 0;
 	}
 
-	tb_debug(r, "Token Binding header found: %s=%s", hdr_name, header);
+	tb_debug(r, "Token Binding header found: %s=%s", TB_CFG_SEC_TB_HDR_NAME, header);
 
 	size_t maxlen = strlen(header);
 	*message = apr_pcalloc(r->pool, maxlen);
 	*message_len = WebSafeBase64Unescape(header, *message, maxlen);
+
+	tb_clean_header(r, TB_CFG_SEC_TB_HDR_NAME);
+
 	if (*message_len == 0) {
 		tb_error(r, "could not base64url decode Token Binding header");
 		return 0;
@@ -322,47 +351,6 @@ static void tb_draft_campbell_tokbind_ttrp(request_rec *r,
 		tb_debug(r, "no referred token binding ID found");
 }
 
-static int tb_char_to_env(int c) {
-	return apr_isalnum(c) ? apr_toupper(c) : '_';
-}
-
-static int tb_strnenvcmp(const char *a, const char *b) {
-	int d, i = 0;
-	while (1) {
-		if (!*a && !*b)
-			return 0;
-		if (*a && !*b)
-			return 1;
-		if (!*a && *b)
-			return -1;
-		d = tb_char_to_env(*a) - tb_char_to_env(*b);
-		if (d)
-			return d;
-		a++;
-		b++;
-		i++;
-	}
-	return 0;
-}
-
-static void tb_clean_header(request_rec *r, const char *name) {
-	const apr_array_header_t * const h = apr_table_elts(r->headers_in);
-	apr_table_t *clean_headers = apr_table_make(r->pool, h->nelts);
-	const apr_table_entry_t * const e = (const apr_table_entry_t *) h->elts;
-	int i = 0;
-	while (i < h->nelts) {
-		if (e[i].key != NULL) {
-			if (tb_strnenvcmp(e[i].key, name) != 0)
-				apr_table_addn(clean_headers, e[i].key, e[i].val);
-			else
-				tb_warn(r, "removing incoming request header (%s: %s)",
-						e[i].key, e[i].val);
-		}
-		i++;
-	}
-	r->headers_in = clean_headers;
-}
-
 static int tb_post_read_request(request_rec *r) {
 
 	tb_server_config *cfg = (tb_server_config*) ap_get_module_config(
@@ -377,8 +365,10 @@ static int tb_post_read_request(request_rec *r) {
 	tb_clean_header(r, TB_CFG_PROVIDED_TBID_HDR_NAME);
 	tb_clean_header(r, TB_CFG_REFERRED_TBID_HDR_NAME);
 
-	if (tb_is_enabled(r, cfg, &tls_key_type) == 0)
+	if (tb_is_enabled(r, cfg, &tls_key_type) == 0) {
+		tb_clean_header(r, TB_CFG_SEC_TB_HDR_NAME);
 		return DECLINED;
+	}
 
 	if (tb_get_decoded_header(r, cfg, &message, &message_len) == 0)
 		return HTTP_UNAUTHORIZED;
@@ -432,7 +422,6 @@ void *tb_create_server_config(apr_pool_t *pool, server_rec *svr) {
 	tbCacheLibInit(rand_seed);
 
 	c->cache = tbCacheCreate();
-	c->sec_header_name = NULL;
 	c->provided_env_var = NULL;
 	c->referred_env_var = NULL;
 	c->context_env_var = NULL;
@@ -446,9 +435,6 @@ void *tb_merge_server_config(apr_pool_t *pool, void *BASE, void *ADD) {
 	c->enabled =
 			add->enabled != TB_CFG_POS_INT_UNSET ? add->enabled : base->enabled;
 	c->cache = add->cache;
-	c->sec_header_name =
-			add->sec_header_name != NULL ?
-					add->sec_header_name : base->sec_header_name;
 	c->provided_env_var =
 			add->provided_env_var != NULL ?
 					add->provided_env_var : base->provided_env_var;
@@ -496,12 +482,6 @@ static const command_rec tb_cmds[] = {
 			NULL,
 			RSRC_CONF,
 			"enable or disable mod_token_binding. (default: On)"),
-		AP_INIT_TAKE1(
-			"TokenBindingSecHeaderName",
-			tb_cfg_set_sec_header_name,
-			NULL,
-			RSRC_CONF,
-			"set the HTTP request header name in which the Token Binding ID will be provided. (default: " TB_CFG_HEADER_NAME_DEFAULT ")"),
 		AP_INIT_TAKE1(
 			"TokenBindingProvidedEnvVar",
 			tb_cfg_set_provided_env_var,
