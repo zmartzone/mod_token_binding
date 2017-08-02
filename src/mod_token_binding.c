@@ -80,9 +80,9 @@ module AP_MODULE_DECLARE_DATA token_binding_module;
 #define TB_CFG_POS_INT_UNSET                  -1
 
 #define TB_CFG_SEC_TB_HDR_NAME                "Sec-Token-Binding"
-#define TB_CFG_PROVIDED_TBID_HDR_NAME         "Provided-Token-Binding-ID"
-#define TB_CFG_REFERRED_TBID_HDR_NAME         "Referred-Token-Binding-ID"
-#define TB_CFG_TB_CONTEXT_HDR_NAME            "Token-Binding-Context"
+#define TB_CFG_PROVIDED_TBID_HDR_NAME         "Sec-Provided-Token-Binding-ID"
+#define TB_CFG_REFERRED_TBID_HDR_NAME         "Sec-Referred-Token-Binding-ID"
+#define TB_CFG_TB_CONTEXT_HDR_NAME            "Sec-Token-Binding-Context"
 
 #define TB_CFG_ENABLED_DEFAULT                 TRUE
 #define TB_CFG_PROVIDED_ENV_VAR_DEFAULT       TB_CFG_PROVIDED_TBID_HDR_NAME
@@ -229,7 +229,7 @@ static int tb_is_enabled(request_rec *r, tb_server_config *c,
 	}
 
 	if (!tbTokenBindingEnabled(get_ssl_from_request_fn(r), tls_key_type)) {
-		tb_warn(r, "Token Binding is not enabled by the peer");
+		tb_debug(r, "Token Binding is not enabled by the peer");
 		return 0;
 	}
 

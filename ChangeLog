@@ -1,3 +1,7 @@
+8/2/2017
+- prefix header/envvar names with "Sec-" conform https://tools.ietf.org/html/draft-ietf-tokbind-ttrp-01
+- version 0.3.4
+
 7/18/2017
 - always remove Sec-Token-Binding header from incoming headers conform draft-campbell-tokbind-ttrp-01#section-2.2
 - version 0.3.3
