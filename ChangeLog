@@ -1,3 +1,8 @@
+9/13/1027
+- make the information/variables that are passed configurable through `TokenBindingPassVar [provided|referred|context]+`
+  see #1
+- version 0.3.5
+
 8/2/2017
 - prefix header/envvar names with "Sec-" conform https://tools.ietf.org/html/draft-ietf-tokbind-ttrp-01
 - version 0.3.4

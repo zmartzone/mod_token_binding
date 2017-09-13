@@ -84,10 +84,19 @@ module AP_MODULE_DECLARE_DATA token_binding_module;
 #define TB_CFG_REFERRED_TBID_HDR_NAME         "Sec-Referred-Token-Binding-ID"
 #define TB_CFG_TB_CONTEXT_HDR_NAME            "Sec-Token-Binding-Context"
 
-#define TB_CFG_ENABLED_DEFAULT                 TRUE
+#define TB_CFG_ENABLED_DEFAULT                TRUE
 #define TB_CFG_PROVIDED_ENV_VAR_DEFAULT       TB_CFG_PROVIDED_TBID_HDR_NAME
 #define TB_CFG_REFERRED_ENV_VAR_DEFAULT       TB_CFG_REFERRED_TBID_HDR_NAME
 #define TB_CFG_CONTEXT_ENV_VAR_DEFAULT        TB_CFG_TB_CONTEXT_HDR_NAME
+
+#define TB_CFG_PASS_VAR_PROVIDED_STR          "provided"
+#define TB_CFG_PASS_VAR_REFERRED_STR          "referred"
+#define TB_CFG_PASS_VAR_CONTEXT_STR           "context"
+
+#define TB_CFG_PASS_VAR_PROVIDED               1
+#define TB_CFG_PASS_VAR_REFERRED               2
+#define TB_CFG_PASS_VAR_CONTEXT                4
+#define TB_CFG_PASS_VAR_DEFAULT                TB_CFG_PASS_VAR_PROVIDED | TB_CFG_PASS_VAR_REFERRED | TB_CFG_PASS_VAR_CONTEXT
 
 typedef struct {
 	int enabled;
@@ -96,6 +105,10 @@ typedef struct {
 	const char *referred_env_var;
 	const char *context_env_var;
 } tb_server_config;
+
+typedef struct {
+	int pass_var;
+} tb_dir_config;
 
 APR_DECLARE_OPTIONAL_FN(int, tb_add_ext, (server_rec *s, SSL_CTX *ctx));
 
@@ -239,6 +252,35 @@ static int tb_is_enabled(request_rec *r, tb_server_config *c,
 	return 1;
 }
 
+static const char * tb_cfg_set_pass_var(cmd_parms *cmd, void *m,
+		const char *arg) {
+	tb_dir_config *c = (tb_dir_config *) m;
+	int n = TB_CFG_POS_INT_UNSET;
+	if (strcmp(arg, TB_CFG_PASS_VAR_PROVIDED_STR) == 0) {
+		n = TB_CFG_PASS_VAR_PROVIDED;
+	} else if (strcmp(arg, TB_CFG_PASS_VAR_REFERRED_STR) == 0) {
+		n = TB_CFG_PASS_VAR_REFERRED;
+	} else if (strcmp(arg, TB_CFG_PASS_VAR_CONTEXT_STR) == 0) {
+		n = TB_CFG_PASS_VAR_CONTEXT;
+	}
+	if (n != TB_CFG_POS_INT_UNSET) {
+		if (c->pass_var == TB_CFG_POS_INT_UNSET)
+			c->pass_var = n;
+		else
+			c->pass_var |= n;
+		return NULL;
+	}
+	return "Invalid value: must be \"" TB_CFG_PASS_VAR_PROVIDED_STR "\",\"" TB_CFG_PASS_VAR_REFERRED_STR "\" or \"" TB_CFG_PASS_VAR_CONTEXT_STR "\"";
+}
+
+static int tb_cfg_dir_get_pass_var(request_rec *r) {
+	tb_dir_config *c = ap_get_module_config(r->per_dir_config,
+			&token_binding_module);
+	if (c->pass_var == TB_CFG_POS_INT_UNSET)
+		return TB_CFG_PASS_VAR_DEFAULT;
+	return c->pass_var;
+}
+
 static int tb_char_to_env(int c) {
 	return apr_isalnum(c) ? apr_toupper(c) : '_';
 }
@@ -289,7 +331,8 @@ static int tb_get_decoded_header(request_rec *r, tb_server_config *cfg,
 		return 0;
 	}
 
-	tb_debug(r, "Token Binding header found: %s=%s", TB_CFG_SEC_TB_HDR_NAME, header);
+	tb_debug(r, "Token Binding header found: %s=%s", TB_CFG_SEC_TB_HDR_NAME,
+			header);
 
 	size_t maxlen = strlen(header);
 	*message = apr_pcalloc(r->pool, maxlen);
@@ -311,6 +354,10 @@ static void tb_draft_campbell_tokbind_tls_term(request_rec *r,
 	static const size_t kHeaderSize = 2;
 	uint8_t* buf;
 	size_t buf_len;
+
+	int pass_var = tb_cfg_dir_get_pass_var(r);
+	if (!(pass_var & TB_CFG_PASS_VAR_CONTEXT))
+		return;
 
 	if (key_type >= TB_INVALID_KEY_TYPE) {
 		tb_error(r, "key_type is invalid");
@@ -337,17 +384,21 @@ static void tb_draft_campbell_tokbind_ttrp(request_rec *r,
 		size_t out_tokbind_id_len, uint8_t* referred_tokbind_id,
 		size_t referred_tokbind_id_len) {
 
-	if ((out_tokbind_id != NULL) && (out_tokbind_id_len > 0))
-		tb_set_var(r, tb_cfg_get_provided_env_var(cfg),
-				TB_CFG_PROVIDED_TBID_HDR_NAME, out_tokbind_id, out_tokbind_id_len);
-	else
+	int pass_var = tb_cfg_dir_get_pass_var(r);
+
+	if ((out_tokbind_id != NULL) && (out_tokbind_id_len > 0)) {
+		if (pass_var & TB_CFG_PASS_VAR_PROVIDED)
+			tb_set_var(r, tb_cfg_get_provided_env_var(cfg),
+					TB_CFG_PROVIDED_TBID_HDR_NAME, out_tokbind_id, out_tokbind_id_len);
+	} else
 		tb_debug(r, "no provided token binding ID found");
 
-	if ((referred_tokbind_id != NULL) && (referred_tokbind_id_len > 0))
-		tb_set_var(r, tb_cfg_get_referred_env_var(cfg),
-				TB_CFG_REFERRED_TBID_HDR_NAME, referred_tokbind_id,
-				referred_tokbind_id_len);
-	else
+	if ((referred_tokbind_id != NULL) && (referred_tokbind_id_len > 0)) {
+		if (pass_var & TB_CFG_PASS_VAR_REFERRED)
+			tb_set_var(r, tb_cfg_get_referred_env_var(cfg),
+					TB_CFG_REFERRED_TBID_HDR_NAME, referred_tokbind_id,
+					referred_tokbind_id_len);
+	} else
 		tb_debug(r, "no referred token binding ID found");
 }
 
@@ -411,6 +462,22 @@ static int tb_post_read_request(request_rec *r) {
 			tls_key_type, ekm, TB_HASH_LEN);
 
 	return DECLINED;
+}
+
+void *tb_create_dir_config(apr_pool_t *pool, char *path) {
+	tb_dir_config *c = apr_pcalloc(pool, sizeof(tb_dir_config));
+	c->pass_var = TB_CFG_POS_INT_UNSET;
+	return c;
+}
+
+void *tb_merge_dir_config(apr_pool_t *pool, void *BASE, void *ADD) {
+	tb_dir_config *c = apr_pcalloc(pool, sizeof(tb_dir_config));
+	tb_dir_config *base = BASE;
+	tb_dir_config *add = ADD;
+	c->pass_var =
+			add->pass_var != TB_CFG_POS_INT_UNSET ?
+					add->pass_var : base->pass_var;
+	return c;
 }
 
 void *tb_create_server_config(apr_pool_t *pool, server_rec *svr) {
@@ -500,13 +567,19 @@ static const command_rec tb_cmds[] = {
 			NULL,
 			RSRC_CONF,
 			"set the environment variable name in which the Token Binding Context re. draft_campbell_tokbind_tls_term will be passed. (default: " TB_CFG_CONTEXT_ENV_VAR_DEFAULT ")"),
+		AP_INIT_ITERATE(
+			"TokenBindingPassVar",
+			tb_cfg_set_pass_var,
+			NULL,
+			RSRC_CONF|ACCESS_CONF|OR_AUTHCFG,
+			"The variables that will be passed as headers/environment-vars; must be one or more of: provided | referred | context]. (default is all)"),
 		{ NULL }
 };
 
 module AP_MODULE_DECLARE_DATA token_binding_module = {
 		STANDARD20_MODULE_STUFF,
-		NULL,
-		NULL,
+		tb_create_dir_config,
+		tb_merge_dir_config,
 		tb_create_server_config,
 		tb_merge_server_config,
 		tb_cmds,
