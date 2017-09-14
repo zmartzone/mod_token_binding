@@ -439,8 +439,10 @@ static int tb_post_read_request(request_rec *r) {
 		return DECLINED;
 	}
 
+	SSL *ssl = get_ssl_from_request_fn(r);
+
 	uint8_t ekm[TB_HASH_LEN];
-	if (!tbGetEKM(get_ssl_from_request_fn(r), ekm)) {
+	if (!tbGetEKM(ssl, ekm)) {
 		tb_warn(r, "unable to get EKM from TLS connection");
 		return DECLINED;
 	}
@@ -454,12 +456,16 @@ static int tb_post_read_request(request_rec *r) {
 		return DECLINED;
 	}
 
-	tb_debug(r, "verified Token Binding header!");
+	u_int8_t buf[2] = { 0, 0 };
+	getNegotiatedVersion(ssl, buf);
+	tb_debug(r,
+			"verified Token Binding header (negotiated Token Binding version: %d.%d)",
+			buf[0], buf[1]);
 
 	tb_draft_campbell_tokbind_ttrp(r, cfg, out_tokbind_id, out_tokbind_id_len,
 			referred_tokbind_id, referred_tokbind_id_len);
-	tb_draft_campbell_tokbind_tls_term(r, cfg, get_ssl_from_request_fn(r),
-			tls_key_type, ekm, TB_HASH_LEN);
+	tb_draft_campbell_tokbind_tls_term(r, cfg, ssl, tls_key_type, ekm,
+			TB_HASH_LEN);
 
 	return DECLINED;
 }
@@ -522,7 +528,9 @@ static apr_status_t tb_cleanup_handler(void *data) {
 
 static int tb_post_config_handler(apr_pool_t *pool, apr_pool_t *p1,
 		apr_pool_t *p2, server_rec *s) {
-	tb_sinfo(s, "%s - init", NAMEVERSION);
+	tb_sinfo(s, "%s - init - token_bind %d.%d (>=%d.%d)", NAMEVERSION,
+			TB_MAJOR_VERSION, TB_MINOR_VERSION, TB_MIN_SUPPORTED_MAJOR_VERSION,
+			TB_MIN_SUPPORTED_MINOR_VERSION);
 	apr_pool_cleanup_register(pool, s, tb_cleanup_handler,
 			apr_pool_cleanup_null);
 	return OK;

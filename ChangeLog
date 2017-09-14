@@ -1,4 +1,8 @@
-9/13/1027
+9/14/2017
+- log supported Token Binding protocol version(s) at startup
+- log negotiated Token Binding protocol version after header verification
+
+9/13/2017
 - make the information/variables that are passed configurable through `TokenBindingPassVar [provided|referred|context]+`
   see #1
 - version 0.3.5
