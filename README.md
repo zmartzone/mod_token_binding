@@ -35,3 +35,18 @@ Since version 2.3.1 [mod_auth_openidc](https://github.com/pingidentity/mod_auth_
 - Google's Token Bind library  
   with a patch to expose the `getNegotiatedVersion` function:
   https://github.com/zmartzone/token_bind/tree/expose-negotiated-version  
+
+## Installation and Configuration
+
+Edit the configuration file for your web server. Depending on
+your distribution, it may be named '/etc/apache/httpd.conf' or something
+different.
+
+You need to add a LoadModule directive for mod_token_binding. This will
+look similar to this:
+
+LoadModule token_binding_module /usr/lib/apache2/modules/mod_token_binding.so
+
+You can then optionally configure mod_token_binding with specific configuration primitives.
+For an exhaustive overview of all configuration primitives, see: token_binding.conf in this directory.
+That file can also function as an include file for Apache.
