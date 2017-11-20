@@ -1,0 +1,48 @@
+diff --git a/modules/ssl/ssl_engine_init.c b/modules/ssl/ssl_engine_init.c
+index ba79ef3..56a93ae 100644
+--- a/modules/ssl/ssl_engine_init.c
++++ b/modules/ssl/ssl_engine_init.c
+@@ -433,6 +433,33 @@
+ #endif
+ 
+ #ifdef HAVE_TLSEXT
++
++APR_DECLARE_OPTIONAL_FN(SSL *, ssl_get_ssl_from_request, (request_rec *));
++
++SSL *ssl_get_ssl_from_request(request_rec *r) {
++    SSLConnRec *sslconn = myConnConfig(r->connection);
++    return sslconn->ssl;
++}
++
++APR_DECLARE_OPTIONAL_FN(int, tb_add_ext, (server_rec *s, SSL_CTX *ctx));
++
++static APR_OPTIONAL_FN_TYPE(tb_add_ext) *tb_add_ext_fn = NULL;
++
++static void ssl_token_binding_add_ext(server_rec *s, modssl_ctx_t *mctx) {
++
++    APR_REGISTER_OPTIONAL_FN(ssl_get_ssl_from_request);
++
++    if (tb_add_ext_fn == NULL)
++        tb_add_ext_fn = APR_RETRIEVE_OPTIONAL_FN(tb_add_ext);
++
++    if (tb_add_ext_fn == NULL) {
++        ap_log_error(APLOG_MARK, APLOG_INFO, 0, s,
++                "No Token Binding TLS extension function found: perhaps mod_token_binding is not loaded?");
++        return;
++    }
++    tb_add_ext_fn(s, mctx->ssl_ctx);
++}
++
+ static apr_status_t ssl_init_ctx_tls_extensions(server_rec *s,
+                                                 apr_pool_t *p,
+                                                 apr_pool_t *ptemp,
+@@ -501,6 +528,9 @@
+         SSL_CTX_set_srp_cb_arg(mctx->ssl_ctx, mctx);
+     }
+ #endif
++
++    ssl_token_binding_add_ext(s, mctx);
++
+     return APR_SUCCESS;
+ }
+ #endif
