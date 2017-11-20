@@ -1,3 +1,6 @@
+11/20/2017
+- use stock Apache distro >= 2.4.26 since OpenSSL 1.1.x support is included now
+
 9/14/2017
 - log supported Token Binding protocol version(s) at startup
 - log negotiated Token Binding protocol version after header verification

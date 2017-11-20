@@ -13,7 +13,7 @@ ENV TARGET_DIR /usr/local
 #
 # OpenSSL 1.1.x
 #
-ENV OPENSSL_VERSION 1.1.0e
+ENV OPENSSL_VERSION 1.1.0g
 
 RUN wget https://www.openssl.org/source/openssl-${OPENSSL_VERSION}.tar.gz
 RUN tar zxvf openssl-${OPENSSL_VERSION}.tar.gz
@@ -23,12 +23,14 @@ RUN cd openssl-${OPENSSL_VERSION} && ./config --prefix=${TARGET_DIR} && make && 
 #
 # Apache HTTPd 2.4.x patched for token binding support in mod_ssl
 #
-ENV HTTPD_BRANCH 2.4.x-openssl-1.1.0-token-binding
+ENV HTTPD_VERSION 2.4.29
 
-RUN git clone -b ${HTTPD_BRANCH} --single-branch https://github.com/zmartzone/httpd.git
-RUN cd httpd/srclib/ && svn co http://svn.apache.org/repos/asf/apr/apr/branches/1.6.x apr 
-RUN cd httpd/srclib/ && svn co http://svn.apache.org/repos/asf/apr/apr-util/branches/1.6.x apr-util
-RUN cd httpd && ./buildconf && ./configure --enable-ssl=shared --with-ssl=${TARGET_DIR} --prefix=${TARGET_DIR} --with-included-apr && make install
+RUN wget http://archive.apache.org/dist/httpd/httpd-${HTTPD_VERSION}.tar.gz
+RUN tar zxvf httpd-${HTTPD_VERSION}.tar.gz
+RUN cd httpd-${HTTPD_VERSION}/srclib/ && svn co http://svn.apache.org/repos/asf/apr/apr/branches/1.6.x apr 
+RUN cd httpd-${HTTPD_VERSION}/srclib/ && svn co http://svn.apache.org/repos/asf/apr/apr-util/branches/1.6.x apr-util
+RUN cd httpd-${HTTPD_VERSION} && wget -O - https://raw.githubusercontent.com/zmartzone/mod_token_binding/master/httpd-mod_ssl-token-binding-extension.patch | patch -p1
+RUN cd httpd-${HTTPD_VERSION} && ./buildconf && ./configure --enable-ssl=shared --with-ssl=${TARGET_DIR} --prefix=${TARGET_DIR} --with-included-apr && make install
 
 #
 # mod_token_binding

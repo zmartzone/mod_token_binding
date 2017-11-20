@@ -29,9 +29,9 @@ Since version 2.3.1 [mod_auth_openidc](https://github.com/pingidentity/mod_auth_
   support for Extended Master Secret  
   with a patch to fix resume with custom extensions:  
   https://github.com/zmartzone/token_bind/blob/master/example/custom_ext_resume.patch
-- HTTPd 2.4.x-openssl-1.1.0-compat  
-  with a patch to install the Token Binding Extension handler:  
-  https://github.com/zmartzone/httpd/commit/0faae87c00d94ce4392b177e83f397f2fcc4abb3
+- HTTPd 2.4.x with mod_ssl (>= 2.4.26 for OpenSSL 1.1.x support)  
+  with a patch to that adds the Token Binding Extension handler:  
+  https://github.com/zmartzone/mod_token_binding/blob/master/httpd-mod_ssl-token-binding-extension.patch
 - Google's Token Bind library  
   with a patch to expose the `getNegotiatedVersion` function:
   https://github.com/zmartzone/token_bind/tree/expose-negotiated-version  
