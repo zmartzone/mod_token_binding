@@ -38,6 +38,9 @@ install: src/mod_token_binding.la
 .PHONY: distfile
 distfile:	@NAMEVER@.tar.gz
 
+docker:
+	make -f test/docker/Makefile
+
 .PHONY:	clean
 clean:
 	rm -f src/mod_token_binding.la

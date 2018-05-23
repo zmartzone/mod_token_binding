@@ -6,7 +6,7 @@ HTTPS_PORT=4433
 all: build run
 
 build:
-	docker build -t $(TAG) .
+	docker build -f test/docker/Dockerfile -t $(TAG) .
 
 run:
 	docker run -p $(HTTP_PORT):$(HTTP_PORT) -p $(HTTPS_PORT):$(HTTPS_PORT) -it $(TAG) /bin/bash -c "$(TARGET_DIR)/bin/apachectl start && tail -f $(TARGET_DIR)/logs/error_log"

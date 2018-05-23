@@ -1,0 +1,12 @@
+diff -ru openssl-1.1.0h.org/ssl/t1_lib.c openssl-1.1.0h/ssl/t1_lib.c
+--- openssl-1.1.0h.org/ssl/t1_lib.c	2018-03-27 15:50:40.000000000 +0200
++++ openssl-1.1.0h/ssl/t1_lib.c	2018-05-23 18:51:35.000000000 +0200
+@@ -2302,7 +2302,7 @@
+          * callback and record the extension number so that an appropriate
+          * ServerHello may be later returned.
+          */
+-        else if (!s->hit) {
++        else {
+             if (custom_ext_parse(s, 1, type, PACKET_data(&extension),
+                                  PACKET_remaining(&extension), al) <= 0)
+                 return 0;
