@@ -18,7 +18,7 @@ It then sets environment variables and headers with the results of that process 
 ## Quickstart
 
 There’s a sample `Dockerfile` under `test/docker` to get you to a quick functional server setup with all of the prerequisites listed above. It reverse proxies requests to `http://httpbin.org/headers` to show the resulting request headers.
-Build and run this container on a Docker-equipped system with `make docker` and then browse to [https://localhost:4433](https://localhost:4433)`.
+Build and run this container on a Docker-equipped system with `./autogen.sh && make docker` and then browse to [https://localhost:4433](https://localhost:4433)`.
 
 ## Application
 
