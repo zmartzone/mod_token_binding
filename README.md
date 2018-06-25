@@ -53,3 +53,18 @@ LoadModule token_binding_module /usr/lib/apache2/modules/mod_token_binding.so
 You can then optionally configure mod_token_binding with specific configuration primitives.
 For an exhaustive overview of all configuration primitives, see `token_binding.conf` in this directory.
 That file can also function as an include file for Apache.
+
+## Support
+
+See the Wiki pages with Frequently Asked Questions at:  
+  https://github.com/zmartzone/mod_token_binding/wiki  
+For commercial support and consultancy you can contact:  
+  [info@zmartzone.eu](mailto:info@zmartzone.eu)  
+
+Any questions/issues should go to issues tracker.
+
+Disclaimer
+----------
+
+*This software is open sourced by ZmartZone IAM. For commercial support
+you can contact [ZmartZone IAM](https://www.zmartzone.eu) as described above.*
