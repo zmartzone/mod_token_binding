@@ -9,16 +9,16 @@ This module implements the Token Binding protocol as defined in [https://github.
 It then sets environment variables and headers with the results of that process so that other modules and applications running on top of (or behind) it can use that to bind their tokens and cookies to the so-called Token Binding ID. The environment variables/headers are:
 
 - `Sec-Provided-Token-Binding-ID`  
-  The Provided Token Binding ID that the browser uses towards your Apache server conforming to [draft-ietf-tokbind-ttrp-02](https://tools.ietf.org/html/draft-ietf-tokbind-ttrp-02#section-2.2).
+  The Provided Token Binding ID that the browser uses towards your Apache server conforming to [draft-ietf-tokbind-ttrp-05](https://tools.ietf.org/html/draft-ietf-tokbind-ttrp-05#section-2.2).
 - `Sec-Referred-Token-Binding-ID`  
-  The Referred Token Binding ID (if any) that the User Agent used on the "leg" to a remote entity that you federate with conforming to [draft-ietf-tokbind-ttrp-02](https://tools.ietf.org/html/draft-ietf-tokbind-ttrp-02#section-2.2).
+  The Referred Token Binding ID (if any) that the User Agent used on the "leg" to a remote entity that you federate with conforming to [draft-ietf-tokbind-ttrp-05](https://tools.ietf.org/html/draft-ietf-tokbind-ttrp-05#section-2.2).
 - `Sec-Token-Binding-Context`  
   The key parameters negotiated on the Provided Token Binding ID conforming to [draft-campbell-tokbind-tls-term-00](https://tools.ietf.org/html/draft-campbell-tokbind-tls-term-00#section-2) (with a `Sec-` prefix added to the header).
 
 ## Quickstart
 
 There’s a sample `Dockerfile` under `test/docker` to get you to a quick functional server setup with all of the prerequisites listed above. It reverse proxies requests to `http://httpbin.org/headers` to show the resulting request headers.
-Build and run this container on a Docker-equipped system with `./autogen.sh && make docker` and then browse to [https://localhost:4433](https://localhost:4433)`.
+Build and run this container on a Docker-equipped system with `./autogen.sh && ./configure && make docker` and then browse to [https://localhost:4433](https://localhost:4433)`.
 
 ## Application
 

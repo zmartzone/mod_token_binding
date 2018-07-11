@@ -379,7 +379,7 @@ static void tb_draft_campbell_tokbind_tls_term(request_rec *r,
 			buf, buf_len);
 }
 
-static void tb_draft_campbell_tokbind_ttrp(request_rec *r,
+static void tb_draft_ietf_tokbind_ttrp(request_rec *r,
 		tb_server_config *cfg, uint8_t* out_tokbind_id,
 		size_t out_tokbind_id_len, uint8_t* referred_tokbind_id,
 		size_t referred_tokbind_id_len) {
@@ -433,7 +433,7 @@ static int tb_post_read_request(request_rec *r) {
 			message_len, &out_tokbind_id, &out_tokbind_id_len,
 			&referred_tokbind_id, &referred_tokbind_id_len)) {
 		tb_debug(r, "tbCacheMessageAlreadyVerified returned true");
-		tb_draft_campbell_tokbind_ttrp(r, cfg, out_tokbind_id,
+		tb_draft_ietf_tokbind_ttrp(r, cfg, out_tokbind_id,
 				out_tokbind_id_len, referred_tokbind_id,
 				referred_tokbind_id_len);
 		return DECLINED;
@@ -462,7 +462,7 @@ static int tb_post_read_request(request_rec *r) {
 			"verified Token Binding header (negotiated Token Binding version: %d.%d)",
 			buf[0], buf[1]);
 
-	tb_draft_campbell_tokbind_ttrp(r, cfg, out_tokbind_id, out_tokbind_id_len,
+	tb_draft_ietf_tokbind_ttrp(r, cfg, out_tokbind_id, out_tokbind_id_len,
 			referred_tokbind_id, referred_tokbind_id_len);
 	tb_draft_campbell_tokbind_tls_term(r, cfg, ssl, tls_key_type, ekm,
 			TB_HASH_LEN);

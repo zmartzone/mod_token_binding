@@ -51,6 +51,6 @@ RUN cd mod_token_binding && ./autogen.sh && ./configure --with-token-binding=/ro
 #
 # web server configuration
 #
-RUN cd ${TARGET_DIR}/conf/ && if [ ! -f server.crt ] ; then /usr/bin/openssl req -x509 -newkey rsa:2048 -keyout server.key -out server.crt -days 3650 -nodes -subj '/CN=localhost'; fi
+RUN  if [ -f mod_token_binding/test/docker/server.crt ] ; then cp mod_token_binding/test/docker/server.crt ${TARGET_DIR}/conf/ && cp mod_token_binding/test/docker/server.key ${TARGET_DIR}/conf/; else cd ${TARGET_DIR}/conf/ && /usr/bin/openssl req -x509 -newkey rsa:2048 -keyout server.key -out server.crt -days 3650 -nodes -subj '/CN=localhost'; fi
 COPY test/docker/httpd.conf ${TARGET_DIR}/conf/
 COPY test/docker/httpd-ssl.conf ${TARGET_DIR}/conf/extra/
