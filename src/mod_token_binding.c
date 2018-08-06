@@ -18,7 +18,7 @@
  */
 
 /***************************************************************************
- * Copyright (C) 2017 ZmartZone IAM
+ * Copyright (C) 2017-2018 ZmartZone IAM
  * All rights reserved.
  *
  *      ZmartZone IAM
@@ -53,8 +53,9 @@
 #include <apr_optional.h>
 #include <apr_lib.h>
 
-#include "openssl/rand.h"
+#include <openssl/rand.h>
 #include <openssl/ssl.h>
+#include <mod_ssl_openssl.h>
 
 #include "mod_token_binding.h"
 
@@ -110,14 +111,26 @@ typedef struct {
 	int pass_var;
 } tb_dir_config;
 
-APR_DECLARE_OPTIONAL_FN(int, tb_add_ext, (server_rec *s, SSL_CTX *ctx));
+typedef struct tb_conn_config {
+	SSL *ssl;
+	tbKeyType tls_key_type;
+	int is_proxy;
+} tb_conn_config;
+
+static tb_conn_config *tb_get_conn_config(conn_rec *c) {
+	tb_conn_config *conn_cfg = ap_get_module_config(c->conn_config,
+			&token_binding_module);
+
+	if (!conn_cfg) {
+		conn_cfg = apr_pcalloc(c->pool, sizeof *conn_cfg);
+		ap_set_module_config(c->conn_config, &token_binding_module, conn_cfg);
+	}
+
+	return conn_cfg;
+}
 
 APR_DECLARE_OPTIONAL_FN(int, ssl_is_https, (conn_rec *));
-APR_DECLARE_OPTIONAL_FN(SSL *, ssl_get_ssl_from_request, (request_rec *));
-
 static APR_OPTIONAL_FN_TYPE(ssl_is_https) *ssl_is_https_fn = NULL;
-static APR_OPTIONAL_FN_TYPE(ssl_get_ssl_from_request) *get_ssl_from_request_fn =
-		NULL;
 
 static const char *tb_cfg_set_enabled(cmd_parms *cmd, void *struct_ptr,
 		const char *arg) {
@@ -178,8 +191,8 @@ static const char * tb_cfg_get_context_env_var(tb_server_config *cfg) {
 			cfg->context_env_var : TB_CFG_CONTEXT_ENV_VAR_DEFAULT;
 }
 
-// called dynamically from mod_ssl
-static int tb_add_ext(server_rec *s, SSL_CTX *ctx) {
+static int tb_ssl_init_server(server_rec *s, apr_pool_t *p, int is_proxy,
+		SSL_CTX *ctx) {
 	tb_sdebug(s, "enter");
 
 	if (!tbTLSLibInit()) {
@@ -192,7 +205,18 @@ static int tb_add_ext(server_rec *s, SSL_CTX *ctx) {
 		return -1;
 	}
 
-	return 1;
+	return 0;
+}
+
+static int tb_ssl_pre_handshake(conn_rec *c, SSL * ssl, int is_proxy) {
+
+	tb_sdebug(c->base_server, "enter");
+
+	tb_conn_config *conn_config = tb_get_conn_config(c);
+	conn_config->ssl = ssl;
+	conn_config->is_proxy = is_proxy;
+
+	return 0;
 }
 
 static void tb_set_var(request_rec *r, const char *env_var_name,
@@ -216,7 +240,7 @@ static void tb_set_var(request_rec *r, const char *env_var_name,
 }
 
 static int tb_is_enabled(request_rec *r, tb_server_config *c,
-		tbKeyType *tls_key_type) {
+		tb_conn_config *conn_cfg) {
 
 	if (tb_cfg_get_enabled(c) == FALSE) {
 		tb_debug(r, "token binding is not enabled in the configuration");
@@ -235,19 +259,13 @@ static int tb_is_enabled(request_rec *r, tb_server_config *c,
 		return 0;
 	}
 
-	if (get_ssl_from_request_fn == NULL) {
-		tb_warn(r,
-				"no ssl_get_ssl_from_request function found: perhaps a version of mod_ssl is loaded that is not patched for token binding?");
-		return 0;
-	}
-
-	if (!tbTokenBindingEnabled(get_ssl_from_request_fn(r), tls_key_type)) {
+	if (!tbTokenBindingEnabled(conn_cfg->ssl, &conn_cfg->tls_key_type)) {
 		tb_debug(r, "Token Binding is not enabled by the peer");
 		return 0;
 	}
 
-	tb_debug(r, "Token Binding is enabled on this connection: key_type=%d!",
-			*tls_key_type);
+	tb_debug(r, "Token Binding is enabled on this connection: key_type=%s",
+			tbGetKeyTypeName(conn_cfg->tls_key_type));
 
 	return 1;
 }
@@ -379,10 +397,9 @@ static void tb_draft_campbell_tokbind_tls_term(request_rec *r,
 			buf, buf_len);
 }
 
-static void tb_draft_ietf_tokbind_ttrp(request_rec *r,
-		tb_server_config *cfg, uint8_t* out_tokbind_id,
-		size_t out_tokbind_id_len, uint8_t* referred_tokbind_id,
-		size_t referred_tokbind_id_len) {
+static void tb_draft_ietf_tokbind_ttrp(request_rec *r, tb_server_config *cfg,
+		uint8_t* out_tokbind_id, size_t out_tokbind_id_len,
+		uint8_t* referred_tokbind_id, size_t referred_tokbind_id_len) {
 
 	int pass_var = tb_cfg_dir_get_pass_var(r);
 
@@ -406,7 +423,7 @@ static int tb_post_read_request(request_rec *r) {
 
 	tb_server_config *cfg = (tb_server_config*) ap_get_module_config(
 			r->server->module_config, &token_binding_module);
-	tbKeyType tls_key_type;
+	tb_conn_config *conn_cfg = tb_get_conn_config(r->connection);
 	char *message = NULL;
 	size_t message_len;
 
@@ -416,7 +433,7 @@ static int tb_post_read_request(request_rec *r) {
 	tb_clean_header(r, TB_CFG_PROVIDED_TBID_HDR_NAME);
 	tb_clean_header(r, TB_CFG_REFERRED_TBID_HDR_NAME);
 
-	if (tb_is_enabled(r, cfg, &tls_key_type) == 0) {
+	if (tb_is_enabled(r, cfg, conn_cfg) == 0) {
 		tb_clean_header(r, TB_CFG_SEC_TB_HDR_NAME);
 		return DECLINED;
 	}
@@ -433,22 +450,19 @@ static int tb_post_read_request(request_rec *r) {
 			message_len, &out_tokbind_id, &out_tokbind_id_len,
 			&referred_tokbind_id, &referred_tokbind_id_len)) {
 		tb_debug(r, "tbCacheMessageAlreadyVerified returned true");
-		tb_draft_ietf_tokbind_ttrp(r, cfg, out_tokbind_id,
-				out_tokbind_id_len, referred_tokbind_id,
-				referred_tokbind_id_len);
+		tb_draft_ietf_tokbind_ttrp(r, cfg, out_tokbind_id, out_tokbind_id_len,
+				referred_tokbind_id, referred_tokbind_id_len);
 		return DECLINED;
 	}
 
-	SSL *ssl = get_ssl_from_request_fn(r);
-
 	uint8_t ekm[TB_HASH_LEN];
-	if (!tbGetEKM(ssl, ekm)) {
+	if (!tbGetEKM(conn_cfg->ssl, ekm)) {
 		tb_warn(r, "unable to get EKM from TLS connection");
 		return DECLINED;
 	}
 
 	if (!tbCacheVerifyTokenBindingMessage(cfg->cache, (uint8_t*) message,
-			message_len, tls_key_type, ekm, &out_tokbind_id,
+			message_len, conn_cfg->tls_key_type, ekm, &out_tokbind_id,
 			&out_tokbind_id_len, &referred_tokbind_id,
 			&referred_tokbind_id_len)) {
 		tb_error(r,
@@ -457,14 +471,15 @@ static int tb_post_read_request(request_rec *r) {
 	}
 
 	u_int8_t buf[2] = { 0, 0 };
-	getNegotiatedVersion(ssl, buf);
+	getNegotiatedVersion(conn_cfg->ssl, buf);
 	tb_debug(r,
 			"verified Token Binding header (negotiated Token Binding version: %d.%d)",
 			buf[0], buf[1]);
 
 	tb_draft_ietf_tokbind_ttrp(r, cfg, out_tokbind_id, out_tokbind_id_len,
 			referred_tokbind_id, referred_tokbind_id_len);
-	tb_draft_campbell_tokbind_tls_term(r, cfg, ssl, tls_key_type, ekm,
+	tb_draft_campbell_tokbind_tls_term(r, cfg, conn_cfg->ssl,
+			conn_cfg->tls_key_type, ekm,
 			TB_HASH_LEN);
 
 	return DECLINED;
@@ -538,8 +553,6 @@ static int tb_post_config_handler(apr_pool_t *pool, apr_pool_t *p1,
 
 static void tb_retrieve_optional_fn() {
 	ssl_is_https_fn = APR_RETRIEVE_OPTIONAL_FN(ssl_is_https);
-	get_ssl_from_request_fn = APR_RETRIEVE_OPTIONAL_FN(
-			ssl_get_ssl_from_request);
 }
 
 static void tb_register_hooks(apr_pool_t *p) {
@@ -547,7 +560,10 @@ static void tb_register_hooks(apr_pool_t *p) {
 	ap_hook_post_read_request(tb_post_read_request, NULL, NULL, APR_HOOK_LAST);
 	ap_hook_optional_fn_retrieve(tb_retrieve_optional_fn, NULL, NULL,
 			APR_HOOK_MIDDLE);
-	APR_REGISTER_OPTIONAL_FN(tb_add_ext);
+	APR_OPTIONAL_HOOK(ssl, init_server, tb_ssl_init_server, NULL, NULL,
+			APR_HOOK_MIDDLE);
+	APR_OPTIONAL_HOOK(ssl, pre_handshake, tb_ssl_pre_handshake, NULL, NULL,
+			APR_HOOK_MIDDLE);
 }
 
 static const command_rec tb_cmds[] = {

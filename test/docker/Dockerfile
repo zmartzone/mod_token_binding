@@ -5,7 +5,7 @@ RUN apt-get clean && apt-get --fix-missing update
 RUN apt-get update && apt-get install -y apt-utils build-essential autoconf automake libtool-bin
 RUN apt-get update && apt-get install -y git subversion wget
 RUN apt-get update && apt-get install -y python libpcre3-dev libexpat1-dev
-RUN apt-get update && apt-get install -y pkg-config
+RUN apt-get update && apt-get install -y pkg-config apache2
 
 WORKDIR /root
 ENV TARGET_DIR /usr/local
@@ -24,16 +24,15 @@ RUN cd openssl-${OPENSSL_VERSION} && patch -p1 < ../mod_token_binding/openssl-cu
 RUN cd openssl-${OPENSSL_VERSION} && ./config --prefix=${TARGET_DIR} && make && make install_sw
 
 #
-# Apache HTTPd 2.4.x patched for token binding support in mod_ssl
+# Apache HTTPd 2.4.x >= 2.4.26 for OpenSSL 1.1.x support
 #
-ENV HTTPD_VERSION    2.4.33
+ENV HTTPD_VERSION    2.4.34
 ENV APR_VERSION      1.6.3
 ENV APR_UTIL_VERSION 1.6.1
 
 RUN wget http://archive.apache.org/dist/httpd/httpd-${HTTPD_VERSION}.tar.gz && tar zxvf httpd-${HTTPD_VERSION}.tar.gz
 RUN cd httpd-${HTTPD_VERSION}/srclib/ && wget http://archive.apache.org/dist/apr/apr-${APR_VERSION}.tar.gz && tar zxvf apr-${APR_VERSION}.tar.gz && ln -s apr-${APR_VERSION} apr
 RUN cd httpd-${HTTPD_VERSION}/srclib/ && wget http://archive.apache.org/dist/apr/apr-util-${APR_UTIL_VERSION}.tar.gz && tar zxvf apr-util-${APR_UTIL_VERSION}.tar.gz && ln -s apr-util-${APR_UTIL_VERSION} apr-util
-RUN cd httpd-${HTTPD_VERSION} && patch -p1 < ../mod_token_binding/httpd-mod_ssl-token-binding-extension.patch
 RUN cd httpd-${HTTPD_VERSION} && ./buildconf && ./configure --enable-ssl=shared --with-ssl=${TARGET_DIR} --prefix=${TARGET_DIR} --with-included-apr && make install
 
 #
@@ -46,7 +45,7 @@ RUN cd token_bind && git checkout expose-negotiated-version
 # mod_token_binding
 #
 #RUN git clone https://github.com/zmartzone/mod_token_binding.git
-RUN cd mod_token_binding && ./autogen.sh && ./configure --with-token-binding=/root/token_bind --with-apxs2=${TARGET_DIR}/bin/apxs && make install
+RUN cd mod_token_binding && ./autogen.sh && ./configure --with-token-binding=/root/token_bind --with-apxs2=${TARGET_DIR}/bin/apxs && make && make install
 
 #
 # web server configuration
