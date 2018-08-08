@@ -5,7 +5,7 @@ RUN apt-get clean && apt-get --fix-missing update
 RUN apt-get update && apt-get install -y apt-utils build-essential autoconf automake libtool-bin
 RUN apt-get update && apt-get install -y git subversion wget
 RUN apt-get update && apt-get install -y python libpcre3-dev libexpat1-dev
-RUN apt-get update && apt-get install -y pkg-config apache2
+RUN apt-get update && apt-get install -y pkg-config
 
 WORKDIR /root
 ENV TARGET_DIR /usr/local

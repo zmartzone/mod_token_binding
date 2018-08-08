@@ -1,3 +1,7 @@
+08/08/2018
+- allow specifying custom OpenSSL 1.1.x path to configure with --with-openssl=<dir>
+- version 0.4.1
+
 08/06/2018
 - use standard mod_ssl primitives for registering hooks
   so that mod_token_binding works with any stock Apache 2.x version now

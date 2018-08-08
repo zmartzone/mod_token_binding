@@ -1,4 +1,4 @@
-AC_INIT([mod_token_binding],[0.4.0],[hans.zandbelt@zmartzone.eu])
+AC_INIT([mod_token_binding],[0.4.1],[hans.zandbelt@zmartzone.eu])
 
 AC_SUBST(NAMEVER, AC_PACKAGE_TARNAME()-AC_PACKAGE_VERSION())
 
@@ -43,14 +43,36 @@ AC_SUBST(APXS2)
 # Use environment variable APXS2_OPTS to pass params to APXS2 command
 AC_ARG_VAR(APXS2_OPTS, [Additional command line options to pass to apxs2.])
 
-# We need OpenSSL for crypto
-PKG_CHECK_MODULES(OPENSSL, openssl)
-AC_SUBST(OPENSSL_CFLAGS)
-AC_SUBST(OPENSSL_LIBS)
-
 PKG_CHECK_MODULES(APR, [apr-1, apr-util-1])
 AC_SUBST(APR_CFLAGS)
 AC_SUBST(APR_LIBS)
+
+HAVE_OPENSSL=0
+
+AC_ARG_WITH(openssl,
+        [  --with-openssl=PATH          location of your OpenSSL 1.1.x installation])
+    
+if test -n "$with_openssl"
+then
+    OPENSSL_CFLAGS="-I$with_openssl/include"
+    OPENSSL_LIBS="-L$with_openssl/lib -lssl -lcrypto"
+
+	CPPFLAGS="$OPENSSL_CFLAGS $CPPFLAGS"
+	AC_CHECK_HEADERS([openssl/ssl.h], , [HAVE_OPENSSL=0])
+
+	LDFLAGS="$OPENSSL_LIBS $LDFLAGS"
+	AC_CHECK_LIB([ssl], [OPENSSL_init_ssl], [HAVE_OPENSSL=1], [HAVE_OPENSSL=0])
+	if test "x$have_openssl" = "x0" ; then
+  		AC_MSG_WARN("cannot find library for -lssl.")
+	fi
+else
+	PKG_CHECK_MODULES(OPENSSL, openssl)
+fi
+
+AC_SUBST(HAVE_OPENSSL)
+AC_SUBST(OPENSSL_CFLAGS)
+AC_SUBST(OPENSSL_LIBS)
+
 
 AC_MSG_CHECKING([for Token Bind library])
 AC_ARG_WITH(
