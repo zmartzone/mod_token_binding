@@ -13,6 +13,7 @@ DISTFILES=$(SRC) \
 	README.md \
 	AUTHORS \
 	DISCLAIMER \
+	token_binding.conf \
 	LICENSE.txt \
 	ChangeLog
 

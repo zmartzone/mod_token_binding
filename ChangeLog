@@ -1,3 +1,7 @@
+08/09/2018
+- add token_binding.conf to distfiles
+- version 0.4.2
+
 08/08/2018
 - allow specifying custom OpenSSL 1.1.x path to configure with --with-openssl=<dir>
 - version 0.4.1
