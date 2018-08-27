@@ -5,7 +5,7 @@ RUN apt-get clean && apt-get --fix-missing update
 RUN apt-get update && apt-get install -y apt-utils build-essential autoconf automake libtool-bin
 RUN apt-get update && apt-get install -y git subversion wget
 RUN apt-get update && apt-get install -y python libpcre3-dev libexpat1-dev
-RUN apt-get update && apt-get install -y pkg-config
+RUN apt-get update && apt-get install -y pkg-config software-properties-common
 
 WORKDIR /root
 ENV TARGET_DIR /usr/local
@@ -35,6 +35,9 @@ RUN cd httpd-${HTTPD_VERSION}/srclib/ && wget http://archive.apache.org/dist/apr
 RUN cd httpd-${HTTPD_VERSION}/srclib/ && wget http://archive.apache.org/dist/apr/apr-util-${APR_UTIL_VERSION}.tar.gz && tar zxvf apr-util-${APR_UTIL_VERSION}.tar.gz && ln -s apr-util-${APR_UTIL_VERSION} apr-util
 RUN cd httpd-${HTTPD_VERSION} && ./buildconf && ./configure --enable-ssl=shared --with-ssl=${TARGET_DIR} --prefix=${TARGET_DIR} --with-included-apr && make install
 
+#RUN LC_ALL=C.UTF-8 add-apt-repository -y ppa:ondrej/apache2
+#RUN apt-get update && apt-get install -y apache2 apache2-dev
+
 #
 # Google's token_bind library with a patch to expose the negotiated version function
 #
@@ -45,6 +48,7 @@ RUN cd token_bind && git checkout expose-negotiated-version
 # mod_token_binding
 #
 #RUN git clone https://github.com/zmartzone/mod_token_binding.git
+#RUN cd mod_token_binding && ./autogen.sh && ./configure --with-token-binding=/root/token_bind && make && make install
 RUN cd mod_token_binding && ./autogen.sh && ./configure --with-token-binding=/root/token_bind --with-apxs2=${TARGET_DIR}/bin/apxs && make && make install
 
 #
