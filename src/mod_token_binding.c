@@ -129,9 +129,6 @@ static tb_conn_config *tb_get_conn_config(conn_rec *c) {
 	return conn_cfg;
 }
 
-APR_DECLARE_OPTIONAL_FN(int, ssl_is_https, (conn_rec *));
-static APR_OPTIONAL_FN_TYPE(ssl_is_https) *ssl_is_https_fn = NULL;
-
 static const char *tb_cfg_set_enabled(cmd_parms *cmd, void *struct_ptr,
 		const char *arg) {
 	tb_server_config *cfg = (tb_server_config *) ap_get_module_config(
@@ -247,15 +244,9 @@ static int tb_is_enabled(request_rec *r, tb_server_config *c,
 		return 0;
 	}
 
-	if (ssl_is_https_fn == NULL) {
-		tb_warn(r,
-				"no ssl_is_https_fn function found: perhaps mod_ssl is not loaded?");
-		return 0;
-	}
-
-	if (ssl_is_https_fn(r->connection) != 1) {
+	if (conn_cfg->ssl == NULL) {
 		tb_debug(r,
-				"no ssl_is_https_fn returned != 1: looks like this is not an SSL connection");
+				"looks like this is not an SSL connection");
 		return 0;
 	}
 
@@ -554,15 +545,9 @@ static int tb_post_config_handler(apr_pool_t *pool, apr_pool_t *p1,
 	return OK;
 }
 
-static void tb_retrieve_optional_fn() {
-	ssl_is_https_fn = APR_RETRIEVE_OPTIONAL_FN(ssl_is_https);
-}
-
 static void tb_register_hooks(apr_pool_t *p) {
 	ap_hook_post_config(tb_post_config_handler, NULL, NULL, APR_HOOK_LAST);
 	ap_hook_post_read_request(tb_post_read_request, NULL, NULL, APR_HOOK_LAST);
-	ap_hook_optional_fn_retrieve(tb_retrieve_optional_fn, NULL, NULL,
-			APR_HOOK_MIDDLE);
 	APR_OPTIONAL_HOOK(ssl, init_server, tb_ssl_init_server, NULL, NULL,
 			APR_HOOK_MIDDLE);
 	APR_OPTIONAL_HOOK(ssl, pre_handshake, tb_ssl_pre_handshake, NULL, NULL,

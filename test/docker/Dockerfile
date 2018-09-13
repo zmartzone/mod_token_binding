@@ -41,8 +41,10 @@ RUN cd httpd-${HTTPD_VERSION} && ./buildconf && ./configure --enable-ssl=shared 
 #
 # Google's token_bind library with a patch to expose the negotiated version function
 #
+ENV TOKEN_BIND_TAG v0.1.1
+
 RUN git clone https://github.com/zmartzone/token_bind.git
-RUN cd token_bind && git checkout openssl-1.1.1
+RUN cd token_bind && git checkout -b ${TOKEN_BIND_TAG} ${TOKEN_BIND_TAG}
 
 #
 # mod_token_binding

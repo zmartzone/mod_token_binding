@@ -1,4 +1,9 @@
 09/13/2018
+- make SSL connection detection use ssl_prehand_shake callback, makeing the mod_ssl imported function obsolete
+- use tagged version of zmartzone/token_bind that supports OpenSSL 1.1.1 and exposes getNegotiatedVersion
+- version 0.5.1
+
+09/13/2018
 - use unpatched OpenSSL 1.1.1 with modifications to token_bind
 - also set Sec-Token-Binding-Context (if configured) when TBID is found in cache
 - version 0.5.0
