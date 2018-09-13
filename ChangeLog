@@ -1,3 +1,8 @@
+09/13/2018
+- use unpatched OpenSSL 1.1.1 with modifications to token_bind
+- also set Sec-Token-Binding-Context (if configured) when TBID is found in cache
+- version 0.5.0
+
 08/09/2018
 - add token_binding.conf to distfiles
 - version 0.4.2

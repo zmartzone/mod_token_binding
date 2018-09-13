@@ -446,18 +446,21 @@ static int tb_post_read_request(request_rec *r) {
 	uint8_t* referred_tokbind_id = NULL;
 	size_t referred_tokbind_id_len = -1;
 
+	uint8_t ekm[TB_HASH_LEN];
+	if (!tbGetEKM(conn_cfg->ssl, ekm)) {
+		tb_warn(r, "unable to get EKM from TLS connection");
+		return DECLINED;
+	}
+
 	if (tbCacheMessageAlreadyVerified(cfg->cache, (uint8_t*) message,
 			message_len, &out_tokbind_id, &out_tokbind_id_len,
 			&referred_tokbind_id, &referred_tokbind_id_len)) {
 		tb_debug(r, "tbCacheMessageAlreadyVerified returned true");
 		tb_draft_ietf_tokbind_ttrp(r, cfg, out_tokbind_id, out_tokbind_id_len,
 				referred_tokbind_id, referred_tokbind_id_len);
-		return DECLINED;
-	}
-
-	uint8_t ekm[TB_HASH_LEN];
-	if (!tbGetEKM(conn_cfg->ssl, ekm)) {
-		tb_warn(r, "unable to get EKM from TLS connection");
+		tb_draft_campbell_tokbind_tls_term(r, cfg, conn_cfg->ssl,
+				conn_cfg->tls_key_type, ekm,
+				TB_HASH_LEN);
 		return DECLINED;
 	}
 

@@ -14,13 +14,13 @@ RUN mkdir mod_token_binding
 COPY . mod_token_binding/
 
 #
-# OpenSSL 1.1.x patched with Google's token_bind custom_ext_resume.patch
+# OpenSSL 1.1.1 (obsoleting the resume path for <= 1.1.0)
 #
-ENV OPENSSL_VERSION 1.1.0h
+ENV OPENSSL_VERSION 1.1.1
 
 RUN wget https://www.openssl.org/source/openssl-${OPENSSL_VERSION}.tar.gz
 RUN tar zxvf openssl-${OPENSSL_VERSION}.tar.gz
-RUN cd openssl-${OPENSSL_VERSION} && patch -p1 < ../mod_token_binding/openssl-custom_ext_resume.patch
+#RUN cd openssl-${OPENSSL_VERSION} && patch -p1 < ../mod_token_binding/openssl-custom_ext_resume.patch
 RUN cd openssl-${OPENSSL_VERSION} && ./config --prefix=${TARGET_DIR} && make && make install_sw
 
 #
@@ -42,7 +42,7 @@ RUN cd httpd-${HTTPD_VERSION} && ./buildconf && ./configure --enable-ssl=shared 
 # Google's token_bind library with a patch to expose the negotiated version function
 #
 RUN git clone https://github.com/zmartzone/token_bind.git
-RUN cd token_bind && git checkout expose-negotiated-version
+RUN cd token_bind && git checkout openssl-1.1.1
 
 #
 # mod_token_binding
