@@ -446,7 +446,7 @@ static int tb_post_read_request(request_rec *r) {
 	if (tbCacheMessageAlreadyVerified(cfg->cache, (uint8_t*) message,
 			message_len, &out_tokbind_id, &out_tokbind_id_len,
 			&referred_tokbind_id, &referred_tokbind_id_len)) {
-		tb_debug(r, "tbCacheMessageAlreadyVerified returned true");
+		tb_debug(r, "tbCacheMessageAlreadyVerified returned true (status=%s", tbCacheGetStatusString(tbCacheGetStatus(cfg->cache)));
 		tb_draft_ietf_tokbind_ttrp(r, cfg, out_tokbind_id, out_tokbind_id_len,
 				referred_tokbind_id, referred_tokbind_id_len);
 		tb_draft_campbell_tokbind_tls_term(r, cfg, conn_cfg->ssl,
@@ -454,6 +454,8 @@ static int tb_post_read_request(request_rec *r) {
 				TB_HASH_LEN);
 		return DECLINED;
 	}
+
+	tb_debug(r, "tbCacheMessageAlreadyVerified returned false (status=%s", tbCacheGetStatusString(tbCacheGetStatus(cfg->cache)));
 
 	if (!tbCacheVerifyTokenBindingMessage(cfg->cache, (uint8_t*) message,
 			message_len, conn_cfg->tls_key_type, ekm, &out_tokbind_id,

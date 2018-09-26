@@ -22,6 +22,30 @@ Build and run this container on a Docker-equipped system with `./autogen.sh && .
 
 ## Application
 
+An application running on or behind the Apache server can leverage the environment variable or HTTP headers that `mod_token_binding` provides. The hard protocol security bits are dealt with by `mod_token_binding` and a trivial 2-step implementation process remains for the application itself. See below for a sample in PHP:
+
+- at session creation time: put the Token Binding ID provided in the environment variable set by mod_token_binding into the session state
+
+```
+$tokenBindingID = apache_getenv('Sec-Provided-Token-Binding-ID');
+if (isset($tokenBindingID)) {
+  $_SESSION['TokenBindingID'] = $tokenBindingID;
+}
+```
+
+- on subsequent requests: check the Token Binding ID stored in the session or token against the (current) Token Binding ID provided in an environment variable
+
+```
+if (array_key_exists('TokenBindingID', $_SESSION)) {
+  $tokenBindingID = apache_getenv('Sec-Provided-Token-Binding-ID');
+  if ($_SESSION['TokenBindingID'] != tokenBindingID) {
+    session_abort();
+  }
+}
+```
+
+**mod_auth_openidc**
+
 Since version 2.3.1 [mod_auth_openidc](https://github.com/zmartzone/mod_auth_openidc) can be configured to use the negotiated environment variables to bind its session (and state) cookie(s) to the TLS connection and to perform OpenID Connect Token Bound Authentication for an ID Token as defined in [http://openid.net/specs/openid-connect-token-bound-authentication-1_0.html](http://openid.net/specs/openid-connect-token-bound-authentication-1_0.html) using its `OIDCTokenBindingPolicy` directive as described in [https://github.com/zmartzone/mod_auth_openidc/blob/v2.3.5/auth_openidc.conf#L211](https://github.com/zmartzone/mod_auth_openidc/blob/v2.3.5/auth_openidc.conf#L211).
 
 ## Requirements

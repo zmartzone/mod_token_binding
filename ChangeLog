@@ -1,3 +1,7 @@
+09/26/2018
+- printout TB cache status
+- add PHP sample application to README.md
+
 09/13/2018
 - make SSL connection detection use ssl_prehand_shake callback, makeing the mod_ssl imported function obsolete
 - use tagged version of zmartzone/token_bind that supports OpenSSL 1.1.1 and exposes getNegotiatedVersion
