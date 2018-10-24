@@ -1,4 +1,4 @@
-AC_INIT([mod_token_binding],[1.0.0],[hans.zandbelt@zmartzone.eu])
+AC_INIT([mod_token_binding],[1.1.0],[hans.zandbelt@zmartzone.eu])
 
 AC_SUBST(NAMEVER, AC_PACKAGE_TARNAME()-AC_PACKAGE_VERSION())
 

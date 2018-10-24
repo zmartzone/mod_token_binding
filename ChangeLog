@@ -1,3 +1,8 @@
+10/24/2018
+- add support for draft https://www.ietf.org/id/draft-ietf-oauth-mtls-12.txt:
+  OAuth 2.0 Mutual TLS Client Authentication and Certificate Bound Access Tokens
+- version 1.1.0
+
 10/9/2018
 - update to RFC8471 and RFC8472
 - version 1.0.0

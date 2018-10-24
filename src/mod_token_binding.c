@@ -89,6 +89,7 @@ module AP_MODULE_DECLARE_DATA token_binding_module;
 #define TB_CFG_PROVIDED_ENV_VAR_DEFAULT       TB_CFG_PROVIDED_TBID_HDR_NAME
 #define TB_CFG_REFERRED_ENV_VAR_DEFAULT       TB_CFG_REFERRED_TBID_HDR_NAME
 #define TB_CFG_CONTEXT_ENV_VAR_DEFAULT        TB_CFG_TB_CONTEXT_HDR_NAME
+#define TB_CFG_FINGERPRINT_ENV_VAR_DEFAULT    "TB_SSL_CLIENT_CERT_FINGERPRINT"
 
 #define TB_CFG_PASS_VAR_PROVIDED_STR          "provided"
 #define TB_CFG_PASS_VAR_REFERRED_STR          "referred"
@@ -213,6 +214,59 @@ static int tb_ssl_pre_handshake(conn_rec *c, SSL * ssl, int is_proxy) {
 	conn_config->ssl = ssl;
 	conn_config->is_proxy = is_proxy;
 
+	return 0;
+}
+
+static void tb_draft_ietf_oauth_mtls(request_rec *r) {
+	char *fingerprint = NULL;
+	X509 *x509 = NULL;
+	unsigned char md[EVP_MAX_MD_SIZE];
+	unsigned int md_len;
+	size_t len;
+	tb_conn_config *conn_cfg = NULL;
+
+	tb_debug(r, "enter");
+
+	conn_cfg = tb_get_conn_config(r->connection);
+
+	if ((conn_cfg == NULL) || (conn_cfg->ssl == NULL)
+			|| (r->subprocess_env == NULL))
+		goto end;
+
+	x509 = SSL_get_peer_certificate(conn_cfg->ssl);
+	if (x509 == NULL) {
+		tb_error(r, "SSL_get_peer_certificate failed");
+		goto end;
+	}
+
+	if (!X509_digest(x509, EVP_sha256(), md, &md_len)) {
+		tb_error(r, "X509_digest failed");
+		goto end;
+	}
+
+	len = CalculateBase64EscapedLen(md_len, false);
+	fingerprint = apr_pcalloc(r->pool, len + 1);
+	WebSafeBase64Escape((const char *) md, md_len, fingerprint, len,
+			false);
+
+	apr_table_set(r->subprocess_env, TB_CFG_FINGERPRINT_ENV_VAR_DEFAULT,
+			fingerprint);
+
+	tb_debug(r, "set environment variable %s to %s",
+			TB_CFG_FINGERPRINT_ENV_VAR_DEFAULT, fingerprint);
+
+	end:
+
+	if (x509)
+		X509_free(x509);
+
+	tb_debug(r, "leave");
+
+	return;
+}
+
+static int tb_check_access_handler(request_rec *r) {
+	tb_draft_ietf_oauth_mtls(r);
 	return 0;
 }
 
@@ -548,12 +602,16 @@ static int tb_post_config_handler(apr_pool_t *pool, apr_pool_t *p1,
 }
 
 static void tb_register_hooks(apr_pool_t *p) {
+    static const char *aszPre[]  = { "mod_ssl.c", NULL };
+    static const char *aszSucc[] = { "mod_auth_openidc.c", NULL };
 	ap_hook_post_config(tb_post_config_handler, NULL, NULL, APR_HOOK_LAST);
-	ap_hook_post_read_request(tb_post_read_request, NULL, NULL, APR_HOOK_LAST);
+	ap_hook_post_read_request(tb_post_read_request, aszPre, aszSucc, APR_HOOK_LAST);
 	APR_OPTIONAL_HOOK(ssl, init_server, tb_ssl_init_server, NULL, NULL,
 			APR_HOOK_MIDDLE);
 	APR_OPTIONAL_HOOK(ssl, pre_handshake, tb_ssl_pre_handshake, NULL, NULL,
 			APR_HOOK_MIDDLE);
+	// need the access hook because only then SSL_get_peer_certificate succeeds...
+	ap_hook_check_access(tb_check_access_handler, aszPre, aszSucc, APR_HOOK_FIRST, AP_AUTH_INTERNAL_PER_CONF);
 }
 
 static const command_rec tb_cmds[] = {
