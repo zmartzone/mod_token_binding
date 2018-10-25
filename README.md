@@ -14,6 +14,8 @@ It then sets environment variables and headers with the results of that process 
   The Referred Token Binding ID (if any) that the User Agent used on the "leg" to a remote entity that you federate with conforming to [draft-ietf-tokbind-ttrp-06](https://tools.ietf.org/html/draft-ietf-tokbind-ttrp-06#section-2.2).
 - `Sec-Token-Binding-Context`  
   The key parameters negotiated on the Provided Token Binding ID conforming to [draft-campbell-tokbind-tls-term-00](https://tools.ietf.org/html/draft-campbell-tokbind-tls-term-00#section-2) (with a `Sec-` prefix added to the header).
+- `TB_SSL_CLIENT_CERT_FINGERPRINT`  
+  The base64url-encoded SHA256 hash of the DER representation of the X.509 Client Certificate used on the SSL connection to the server, see [https://www.ietf.org/id/draft-ietf-oauth-mtls-12](https://www.ietf.org/id/draft-ietf-oauth-mtls-12)
 
 ## Quickstart
 
@@ -47,6 +49,8 @@ if (array_key_exists('TokenBindingID', $_SESSION)) {
 **mod_auth_openidc**
 
 Since version 2.3.1 [mod_auth_openidc](https://github.com/zmartzone/mod_auth_openidc) can be configured to use the negotiated environment variables to bind its session (and state) cookie(s) to the TLS connection and to perform OpenID Connect Token Bound Authentication for an ID Token as defined in [http://openid.net/specs/openid-connect-token-bound-authentication-1_0.html](http://openid.net/specs/openid-connect-token-bound-authentication-1_0.html) using its `OIDCTokenBindingPolicy` directive as described in [https://github.com/zmartzone/mod_auth_openidc/blob/v2.3.5/auth_openidc.conf#L211](https://github.com/zmartzone/mod_auth_openidc/blob/v2.3.5/auth_openidc.conf#L211).
+
+Since version 2.3.9rc5 [mod_auth_openidc](https://github.com/zmartzone/mod_auth_openidc) can be configured to use the  `TB_SSL_CLIENT_CERT_FINGERPRINT` environment variable to verify that an access token presented to it in OAuth 2.0 Resource Server mode contains a hash of the certificate in the `cnf` claim.
 
 ## Requirements
 

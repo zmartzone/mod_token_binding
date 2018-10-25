@@ -249,13 +249,17 @@ static void tb_draft_ietf_oauth_mtls(request_rec *r) {
 	WebSafeBase64Escape((const char *) md, md_len, fingerprint, len,
 			false);
 
+	// TODO: use tb_set_var and rename identifiers
 	apr_table_set(r->subprocess_env, TB_CFG_FINGERPRINT_ENV_VAR_DEFAULT,
 			fingerprint);
 
-	tb_debug(r, "set environment variable %s to %s",
+	tb_debug(r, "set environment variable and header %s to %s",
 			TB_CFG_FINGERPRINT_ENV_VAR_DEFAULT, fingerprint);
 
-	end:
+	apr_table_set(r->headers_in, TB_CFG_FINGERPRINT_ENV_VAR_DEFAULT,
+			fingerprint);
+
+end:
 
 	if (x509)
 		X509_free(x509);
