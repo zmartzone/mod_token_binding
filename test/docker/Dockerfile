@@ -1,11 +1,10 @@
-FROM ubuntu:16.04
+FROM ubuntu:bionic
 MAINTAINER hans.zandbelt@zmartzone.eu
 
 RUN apt-get clean && apt-get --fix-missing update
 RUN apt-get update && apt-get install -y apt-utils build-essential autoconf automake libtool-bin
-RUN apt-get update && apt-get install -y git subversion wget
-RUN apt-get update && apt-get install -y python libpcre3-dev libexpat1-dev
-RUN apt-get update && apt-get install -y pkg-config software-properties-common
+RUN apt-get install -y wget pkg-config git subversion python
+RUN apt-get install -y libssl-dev libpcre3-dev libexpat1-dev
 
 WORKDIR /root
 ENV TARGET_DIR /usr/local
@@ -14,20 +13,11 @@ RUN mkdir mod_token_binding
 COPY . mod_token_binding/
 
 #
-# OpenSSL 1.1.1 (obsoleting the resume path for <= 1.1.0)
-#
-ENV OPENSSL_VERSION 1.1.1
-
-RUN wget https://www.openssl.org/source/openssl-${OPENSSL_VERSION}.tar.gz
-RUN tar zxvf openssl-${OPENSSL_VERSION}.tar.gz
-#RUN cd openssl-${OPENSSL_VERSION} && patch -p1 < ../mod_token_binding/openssl-custom_ext_resume.patch
-RUN cd openssl-${OPENSSL_VERSION} && ./config --prefix=${TARGET_DIR} && make && make install_sw
-
-#
 # Apache HTTPd 2.4.x >= 2.4.26 for OpenSSL 1.1.x support
+# need Apache sources for mod_ssl_openssl.h
 #
-ENV HTTPD_VERSION    2.4.34
-ENV APR_VERSION      1.6.3
+ENV HTTPD_VERSION    2.4.41
+ENV APR_VERSION      1.7.0
 ENV APR_UTIL_VERSION 1.6.1
 
 RUN wget http://archive.apache.org/dist/httpd/httpd-${HTTPD_VERSION}.tar.gz && tar zxvf httpd-${HTTPD_VERSION}.tar.gz
@@ -50,7 +40,6 @@ RUN cd token_bind && git checkout -b ${TOKEN_BIND_TAG} ${TOKEN_BIND_TAG}
 # mod_token_binding
 #
 #RUN git clone https://github.com/zmartzone/mod_token_binding.git
-#RUN cd mod_token_binding && ./autogen.sh && ./configure --with-token-binding=/root/token_bind && make && make install
 RUN cd mod_token_binding && ./autogen.sh && ./configure --with-token-binding=/root/token_bind --with-apxs2=${TARGET_DIR}/bin/apxs && make && make install
 
 #
